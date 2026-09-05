@@ -90,11 +90,108 @@ export const PLATFORM = {
   /** Display timezone. Storage is always UTC. */
   timezone: 'Asia/Kolkata',
   locale: 'en-IN',
-  /** §6.2 — weekly host payout cycle. 1 = Monday. */
-  payoutCycleDay: 1,
-  /** §3 success metric — payout processed within 7 days of booking completion. */
-  payoutTargetDays: 7,
   /** §7.2 — a listing cannot be submitted with fewer than this many photos. */
   minListingPhotos: 2,
   maxListingPhotos: 10,
+} as const;
+
+/**
+ * A10 — How long an unpaid booking holds its slot.
+ *
+ * A pending_payment booking counts against capacity, so without an expiry every abandoned
+ * checkout would remove a slot from the marketplace permanently.
+ */
+export const CHECKOUT = {
+  holdMinutes: 10,
+} as const;
+
+/**
+ * A11 — Dispute window, and the payout hold that depends on it.
+ *
+ * A booking is payout-eligible only once this window has closed with no dispute open, so any
+ * refund the platform might owe is still in the platform's account when it owes it.
+ */
+export const DISPUTE = {
+  windowHoursAfterBookingEnd: 48,
+} as const;
+
+/** A12 — Payout cycle, cadence and minimum. */
+export const PAYOUT = {
+  /** What Hosts are told, and what the Host Listing Agreement states (§6.2). */
+  publishedCycle: 'weekly',
+  /**
+   * When the payout job actually runs. 1 = Monday, 4 = Thursday.
+   *
+   * Twice weekly rather than once, because a 48h dispute hold on a strictly weekly run misses
+   * §3's seven-day target for bookings that complete late in the week.
+   */
+  runDays: [1, 4],
+  /** §3 success metric — payout processed within 7 days of booking completion. */
+  targetDays: 7,
+  /** Paise. Balances below this carry to the next run rather than paying a transfer fee. */
+  minimumPayout: 20_000,
+  /** ...unless the oldest unpaid booking is older than this, so nothing is ever stuck. */
+  forceOutAfterDays: 30,
+} as const;
+
+/** A13 — Host cancellation consequences and no-show treatment. */
+export const HOST_CONDUCT = {
+  /** Host cancellations within the rolling window before the listing is auto-paused. */
+  cancellationLimit: 3,
+  cancellationWindowDays: 90,
+  /** A Seeker who never checks in is still charged: the Host held the space. */
+  refundNoShows: false,
+} as const;
+
+/**
+ * A14 — Which listing edits force re-approval.
+ *
+ * Material fields change what the Seeker is actually buying, so they go back through the
+ * approval queue. Price and copy do not: routing a small price change through an Admin wastes
+ * their day and teaches Hosts not to keep pricing current.
+ */
+export const LISTING_EDITS = {
+  materialFields: ['location', 'address_line', 'spot_type', 'capacity', 'photos'],
+  nonMaterialFields: [
+    'title',
+    'description',
+    'rules',
+    'price_per_hour',
+    'price_per_day',
+    'available_from',
+    'available_until',
+  ],
+} as const;
+
+/** A15 — Authentication limits. */
+export const AUTH = {
+  otpLength: 6,
+  otpValidityMinutes: 10,
+  otpMaxSendsPerHour: 5,
+  otpResendCooldownSeconds: 30,
+  otpMaxVerifyAttempts: 5,
+  sessionDays: 30,
+  /**
+   * An Admin session can trigger payouts, suspend Hosts, and read KYC documents. A month-long
+   * session on a shared or lost laptop is a different risk from a Seeker's.
+   */
+  adminSessionHours: 12,
+} as const;
+
+/** A16 — Review window and visibility. */
+export const REVIEWS = {
+  windowDaysAfterBookingEnd: 14,
+  /** §3 tracks average rating; an average without its count misleads at pilot sample sizes. */
+  alwaysShowCount: true,
+  maxCommentLength: 1000,
+} as const;
+
+/** A17 — Data retention (§12, DPDP Act). */
+export const RETENTION = {
+  /** Longest plausible statutory period for books of account under Indian company law. */
+  financialRecordYears: 8,
+  kycDocumentYears: 8,
+  notificationLogDays: 90,
+  /** On an account-deletion request, anonymise the profile and keep the financial rows. */
+  anonymiseOnDeletionRequest: true,
 } as const;

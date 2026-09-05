@@ -63,15 +63,15 @@ docs/         Specification, assumptions, build status
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `pnpm dev` | Runs the web app with hot reload |
-| `pnpm build` | Production build |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` | The three CI gates |
-| `pnpm db:start` / `pnpm db:stop` | Local Supabase stack |
-| `pnpm db:reset` | Reapplies every migration, then the seed |
-| `pnpm db:types` | Regenerates `packages/types/src/database.types.ts` |
-| `pnpm format` | Prettier across the repo |
+| Command                                      | What it does                                       |
+| -------------------------------------------- | -------------------------------------------------- |
+| `pnpm dev`                                   | Runs the web app with hot reload                   |
+| `pnpm build`                                 | Production build                                   |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | The three CI gates                                 |
+| `pnpm db:start` / `pnpm db:stop`             | Local Supabase stack                               |
+| `pnpm db:reset`                              | Reapplies every migration, then the seed           |
+| `pnpm db:types`                              | Regenerates `packages/types/src/database.types.ts` |
+| `pnpm format`                                | Prettier across the repo                           |
 
 Run `pnpm db:types` after every migration and commit the result, so CI type-checks against the
 same schema you developed against.
@@ -95,11 +95,11 @@ Razorpay merchant KYC takes 1–2 weeks and WhatsApp Business API approval 3–5
 and the spec names both as risks to sprints 4–5 (§16). So every vendor sits behind an adapter
 with a working fake:
 
-| Variable | Default | Real value |
-| --- | --- | --- |
-| `PAYMENTS_PROVIDER` | `fake` | `razorpay` |
-| `NOTIFICATIONS_PROVIDER` | `fake` | `msg91` |
-| `NEXT_PUBLIC_MAPS_PROVIDER` | `fake` | `google` |
+| Variable                    | Default | Real value |
+| --------------------------- | ------- | ---------- |
+| `PAYMENTS_PROVIDER`         | `fake`  | `razorpay` |
+| `NOTIFICATIONS_PROVIDER`    | `fake`  | `msg91`    |
+| `NEXT_PUBLIC_MAPS_PROVIDER` | `fake`  | `google`   |
 
 The fakes are real implementations, not stubs — the fake payment adapter tracks orders,
 verifies HMAC signatures, and enforces refund limits, so code written against it works

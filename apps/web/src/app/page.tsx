@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { PILOT_CITY, PLATFORM } from '@parking/config';
+import { PAYOUT, PILOT_CITY } from '@parking/config';
 import { createClient } from '@/lib/supabase/server';
 import { signOut } from './login/actions';
 
@@ -96,8 +96,7 @@ export default async function HomePage() {
           docs/ROADMAP-STATUS.md.
         </p>
         <p className="mt-2">
-          Payouts are processed weekly, within {PLATFORM.payoutTargetDays} days of a booking
-          completing.
+          Payouts are processed weekly, within {PAYOUT.targetDays} days of a booking completing.
         </p>
       </footer>
     </main>
