@@ -142,17 +142,20 @@ create policy disputes_admin_all on public.disputes
   using (public.is_admin())
   with check (public.is_admin());
 
--- 48 hours, mirroring DISPUTE.windowHoursAfterBookingEnd in packages/config.
-alter table public.bookings
-  add column payout_eligible_at timestamptz
-    generated always as (end_time + interval '48 hours') stored;
-
-comment on column public.bookings.payout_eligible_at is
-  'Assumption A11: the Host is not paid until the dispute window has closed, so any refund the '
-  'platform might owe is still in the platform account when it owes it.';
-
-create index bookings_payout_eligible_idx on public.bookings (host_id, payout_eligible_at)
+-- Payout eligibility is derived from end_time rather than stored.
+--
+-- A generated column would have read better, but `timestamptz + interval` is STABLE rather
+-- than IMMUTABLE in Postgres (the result depends on the session TimeZone), and a generated
+-- column requires an immutable expression. Rather than maintain a denormalised column by
+-- trigger, the window is expressed in the queries as `end_time <= now() - interval '48 hours'`,
+-- which is sargable against this plain index on end_time.
+--
+-- 48 hours mirrors DISPUTE.windowHoursAfterBookingEnd in packages/config.
+create index bookings_payout_window_idx on public.bookings (host_id, end_time)
   where status = 'completed';
+
+comment on index public.bookings_payout_window_idx is
+  'Assumption A11: drives the payout run, which skips bookings whose dispute window is open.';
 
 -- ---------------------------------------------------------------------------
 -- A11 + A12 - Payout eligibility
@@ -177,7 +180,7 @@ as $fn$
      and b.completed_at >= p_period_start
      and b.completed_at < p_period_end
      -- A11: the dispute window has closed...
-     and b.payout_eligible_at <= now()
+     and b.end_time <= now() - interval '48 hours'
      -- ...and nothing is contested.
      and not exists (
        select 1 from public.disputes d
