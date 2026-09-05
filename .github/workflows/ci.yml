@@ -4,9 +4,12 @@
 # before merge". This runs all three plus a production build, because a Next.js build catches
 # a different class of problem than tsc does (server/client boundary violations, for one).
 #
-# The database job is separate: it applies every migration to a real Postgres with PostGIS and
-# then asserts that RLS is actually enabled on every table. A migration that parses fine but
-# leaves a table world-readable is exactly the failure spec section 11 warns about.
+# The database job is separate and is the one that matters most: it applies every migration to
+# a real Postgres with PostGIS, then runs supabase/tests/schema_checks.sql, which asserts that
+# the rules in docs/ASSUMPTIONS.md are actually enforced - capacity limits, checkout holds, the
+# payout dispute hold, listing re-approval, the review window. Those are trigger behaviours
+# that type-checking and unit tests cannot see, and three of them were caught by exactly this
+# check the first time it ran.
 
 name: CI
 
@@ -61,7 +64,7 @@ jobs:
         run: pnpm build
 
   database:
-    name: Migrations and RLS
+    name: Migrations, RLS and schema behaviour
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,23 +90,35 @@ jobs:
       # A table with RLS disabled is readable by anyone holding the anon key, which is public
       # by design. This turns that into a failed build rather than a discovery in production.
       - name: Assert RLS is enabled on every public table
+        env:
+          PGPASSWORD: postgres
         run: |
-          UNPROTECTED=$(pnpm exec supabase db execute --local --command "
-            select string_agg(tablename, ', ')
-              from pg_tables
-             where schemaname = 'public'
-               and not rowsecurity;
-          " --output json | tr -d '[]\"' | xargs)
+          UNPROTECTED=$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -tAc \
+            "select coalesce(string_agg(tablename, ', '), '') from pg_tables
+              where schemaname = 'public' and not rowsecurity;")
 
-          if [ -n "$UNPROTECTED" ] && [ "$UNPROTECTED" != "null" ]; then
+          if [ -n "$UNPROTECTED" ]; then
             echo "::error::Tables without RLS: $UNPROTECTED"
             exit 1
           fi
           echo "All public tables have RLS enabled."
 
-      - name: Check for schema drift
+      # The behavioural suite. Exits non-zero if any assertion fails.
+      - name: Schema behaviour checks
+        env:
+          PGPASSWORD: postgres
         run: |
-          if ! pnpm exec supabase db diff --local --schema public > /dev/null; then
-            echo "::error::Schema drift detected - run 'pnpm db:diff' and commit the migration"
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f supabase/tests/schema_checks.sql
+
+      # The generated types are committed so the verify job type-checks against the same schema
+      # a developer had. If they drift, the build is checking something that no longer exists.
+      - name: Assert committed database types are up to date
+        run: |
+          pnpm exec supabase gen types typescript --local > /tmp/database.types.ts
+          if ! diff -q /tmp/database.types.ts packages/types/src/database.types.ts > /dev/null; then
+            echo "::error::packages/types/src/database.types.ts is stale - run 'pnpm db:types' and commit"
+            diff /tmp/database.types.ts packages/types/src/database.types.ts | head -40
             exit 1
           fi
+          echo "Database types are current."

@@ -18,7 +18,8 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",
-    "db:types": "supabase gen types typescript --local > packages/types/src/database.types.ts"
+    "db:types": "supabase gen types typescript --local > packages/types/src/database.types.ts",
+    "db:check": "node scripts/db-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

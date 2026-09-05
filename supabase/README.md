@@ -27,6 +27,27 @@ Then regenerate the types and commit both:
 pnpm db:types
 ```
 
+## Schema behaviour checks
+
+`tests/schema_checks.sql` asserts that the rules in `docs/ASSUMPTIONS.md` are actually enforced
+by triggers and constraints, not merely that the SQL parses. Run against a freshly reset
+database:
+
+```bash
+pnpm db:reset && pnpm db:check
+```
+
+It runs as the postgres superuser, so RLS is bypassed by design - these test triggers and
+constraints. RLS is asserted separately by CI, which fails the build if any public table has
+row security disabled.
+
+Add a check here whenever you add a rule. The suite caught two real bugs on its first run,
+both invisible to type-checking: see "Bugs the database run caught" in
+`docs/ROADMAP-STATUS.md`.
+
+**Note:** the checks mutate data (they suspend a host and pause listings on purpose), so run
+`pnpm db:reset` again before using the app afterwards.
+
 ## Scheduled jobs
 
 Two jobs need pg_cron enabled on the hosted project.

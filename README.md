@@ -31,6 +31,12 @@ The app runs at http://localhost:3000 and Supabase Studio at http://localhost:54
 **Docker is required** for the local database. On Windows, Docker Desktop needs the WSL2
 backend (`wsl --install`, then reboot).
 
+If Docker Desktop starts and immediately reports "an unexpected error occurred", check
+`%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`. Orphaned unix-socket files
+under `%LOCALAPPDATA%\Docker\run` and `%LOCALAPPDATA%\docker-secrets-engine` survive an
+unclean shutdown and cannot be deleted normally; renaming the containing directory clears
+them, and Docker recreates them on the next start.
+
 ### Signing in locally
 
 Auth is phone-OTP only, no passwords (spec §7.1). In local development Supabase prints the
@@ -71,6 +77,7 @@ docs/         Specification, assumptions, build status
 | `pnpm db:start` / `pnpm db:stop`             | Local Supabase stack                               |
 | `pnpm db:reset`                              | Reapplies every migration, then the seed           |
 | `pnpm db:types`                              | Regenerates `packages/types/src/database.types.ts` |
+| `pnpm db:check`                              | Runs the 44 schema behaviour assertions            |
 | `pnpm format`                                | Prettier across the repo                           |
 
 Run `pnpm db:types` after every migration and commit the result, so CI type-checks against the
@@ -111,6 +118,9 @@ capture, and a payout ending in `07` paise fails.
 
 ## Status
 
-Sprint 0 (Foundation) is complete: monorepo, schema with PostGIS and RLS, domain logic with
-tests, vendor adapters, phone-OTP auth, and CI. Sprints 1–7 are outlined in spec §14 and
-tracked in [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).
+Sprint 0 (Foundation) is complete and verified against a real database: monorepo, schema with
+PostGIS and RLS, domain logic with tests, vendor adapters, phone-OTP auth, and CI.
+
+56 unit tests, 44 schema behaviour checks, lint and typecheck clean, production build green.
+Sprints 1–7 are outlined in spec §14 and tracked in
+[`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).

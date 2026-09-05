@@ -38,15 +38,35 @@ Tracks the sprint plan in specification §14. Update the status column as work l
   and minimum, host-cancellation consequences, listing re-approval rules, auth rate limits,
   the review window, and data retention.
 
-Verified locally: 56/56 tests pass, lint and typecheck clean across all 7 packages, production
-build succeeds.
+Verified locally: 56/56 unit tests pass, 44/44 schema checks pass, lint and typecheck clean
+across all 7 packages, production build succeeds.
 
-**Not yet verified:** the migrations have not been applied to a running Postgres on this
-machine. WSL2 and Ubuntu are now installed, but Docker Desktop's privileged helper service
-(`com.docker.service`) is still stopped and cannot be started without an elevation prompt that
-has to be accepted in the Docker Desktop window. Once the whale icon reports "Engine running",
-`pnpm db:start && pnpm db:reset` completes the check. The CI `database` job runs exactly this
-on every pull request. Until one of the two passes, treat the SQL as unexecuted.
+**Database verified.** All 8 migrations and the seed apply cleanly to Postgres 17.6 with
+PostGIS. All 14 public tables have RLS enabled. `supabase/tests/schema_checks.sql` runs 44
+behavioural assertions against a freshly reset database and all 44 pass — capacity limits,
+checkout holds, the payout dispute hold, listing re-approval, the review window, host
+suspension and the cancellation limit. Run it with `pnpm db:check`; CI runs it on every pull
+request.
+
+End-to-end through PostgREST with the anon key: the nearby search returns the 4 live seed
+listings ordered by distance, and direct reads of `bookings` and `users` return nothing —
+RLS holds against the auto-generated API, which is what spec §11 asks for.
+
+### Bugs the database run caught
+
+Both were invisible to type-checking and unit tests, which is the argument for running the
+schema behaviour suite in CI rather than trusting that the SQL parses:
+
+1. **`NEW.time_range` was always NULL inside the availability trigger.** `time_range` is a
+   STORED generated column, and Postgres computes those _after_ before-row triggers run. Every
+   overlap test evaluated to NULL, so the capacity limit, the host-blocked-window check and the
+   double-booking guard all silently passed everything through. The read-only
+   `listing_available_slots` was correct throughout, which is why it would have looked fine
+   from the UI right up until two people paid for the same slot. Fixed by building the range
+   from `start_time`/`end_time` inside the trigger.
+2. **`payout_eligible_at` could not be a generated column.** `timestamptz + interval` is STABLE,
+   not IMMUTABLE, so the migration was rejected outright. Replaced with a plain index on
+   `end_time` and the window expressed in the queries.
 
 ## Deliberate additions beyond the specification
 
@@ -68,8 +88,6 @@ Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on
 
 ## Open items carried into Sprint 1
 
-- Apply migrations against a real Postgres (blocked on the Docker Desktop elevation prompt
-  locally; CI covers it).
 - Confirm or replace the assumption defaults, especially the platform fee (A1) and
   cancellation policy (A2) — both need to match what legal counsel publishes.
 - Open the vendor accounts in spec §13, starting with Razorpay merchant KYC and the WhatsApp

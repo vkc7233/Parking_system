@@ -246,14 +246,22 @@ as $fn$
 declare
   v_listing public.listings%rowtype;
   v_overlapping integer;
+  -- time_range is a STORED generated column, and Postgres computes those only AFTER
+  -- before-row triggers run. NEW.time_range is therefore still NULL here, and every overlap
+  -- test against it would evaluate to NULL - silently letting double-bookings through.
+  -- Build the range from the source columns instead.
+  v_range tstzrange;
 begin
+  v_range := tstzrange(new.start_time, new.end_time, '[)');
+
   if new.status not in ('pending_payment', 'confirmed', 'completed') then
     return new;
   end if;
 
   if tg_op = 'UPDATE'
      and old.listing_id = new.listing_id
-     and old.time_range = new.time_range
+     and old.start_time = new.start_time
+     and old.end_time = new.end_time
      and old.status in ('pending_payment', 'confirmed', 'completed') then
     return new;
   end if;
@@ -273,7 +281,7 @@ begin
   if exists (
     select 1 from public.availability_blocks b
      where b.listing_id = new.listing_id
-       and tstzrange(b.start_time, b.end_time, '[)') && new.time_range
+       and tstzrange(b.start_time, b.end_time, '[)') && v_range
   ) then
     raise exception 'The host has marked this period unavailable'
       using errcode = 'check_violation';
@@ -286,7 +294,7 @@ begin
      and b.status in ('pending_payment', 'confirmed', 'completed')
      -- A10: a lapsed hold no longer occupies the slot, even before the sweep runs.
      and (b.status <> 'pending_payment' or b.hold_expires_at > now())
-     and b.time_range && new.time_range;
+     and b.time_range && v_range;
 
   if v_overlapping >= v_listing.capacity then
     raise exception 'This spot is fully booked for the selected time (capacity %)',
