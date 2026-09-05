@@ -1,0 +1,109 @@
+# Continuous integration (spec section 9.10).
+#
+# Spec 9.10 asks for "lint, type-check, and automated tests running on every pull request
+# before merge". This runs all three plus a production build, because a Next.js build catches
+# a different class of problem than tsc does (server/client boundary violations, for one).
+#
+# The database job is separate: it applies every migration to a real Postgres with PostGIS and
+# then asserts that RLS is actually enabled on every table. A migration that parses fine but
+# leaves a table world-readable is exactly the failure spec section 11 warns about.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Placeholders: the app validates its environment at boot, and `next build` boots it.
+  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+  ACCESS_PASS_SECRET: ci-access-pass-secret-at-least-32-chars-long
+
+jobs:
+  verify:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  database:
+    name: Migrations and RLS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Start Supabase
+        run: pnpm exec supabase start
+
+      - name: Apply migrations and seed
+        run: pnpm exec supabase db reset
+
+      # A table with RLS disabled is readable by anyone holding the anon key, which is public
+      # by design. This turns that into a failed build rather than a discovery in production.
+      - name: Assert RLS is enabled on every public table
+        run: |
+          UNPROTECTED=$(pnpm exec supabase db execute --local --command "
+            select string_agg(tablename, ', ')
+              from pg_tables
+             where schemaname = 'public'
+               and not rowsecurity;
+          " --output json | tr -d '[]\"' | xargs)
+
+          if [ -n "$UNPROTECTED" ] && [ "$UNPROTECTED" != "null" ]; then
+            echo "::error::Tables without RLS: $UNPROTECTED"
+            exit 1
+          fi
+          echo "All public tables have RLS enabled."
+
+      - name: Check for schema drift
+        run: |
+          if ! pnpm exec supabase db diff --local --schema public > /dev/null; then
+            echo "::error::Schema drift detected - run 'pnpm db:diff' and commit the migration"
+            exit 1
+          fi

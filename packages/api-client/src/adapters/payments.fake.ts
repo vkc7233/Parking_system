@@ -1,0 +1,198 @@
+/**
+ * In-memory payments adapter for local development and tests.
+ *
+ * It is a real implementation of the contract, not a stub that returns undefined: orders are
+ * tracked, refunds decrement the captured amount, signatures are genuinely HMAC-verified, and
+ * failure can be provoked deterministically. That means the booking loop built against it
+ * exercises the same code paths the Razorpay adapter will.
+ *
+ * Provoking failures: an amount ending in 13 paise fails capture, and one ending in 07 paise
+ * reports the payout as failed. Handy for QA (spec section 15 puts QA on the payment loop
+ * specifically) without needing provider-side test hooks.
+ */
+import {
+  PaymentAdapterError,
+  type CapturedPayment,
+  type PaymentOrder,
+  type PaymentsAdapter,
+  type PayoutRequest,
+  type PayoutResult,
+  type RefundResult,
+  type WebhookEvent,
+} from './payments';
+
+interface FakeOrder {
+  order: PaymentOrder;
+  payment?: CapturedPayment;
+  refunded: number;
+}
+
+const FAIL_CAPTURE_SUFFIX = 13;
+const FAIL_PAYOUT_SUFFIX = 7;
+
+export class FakePaymentsAdapter implements PaymentsAdapter {
+  readonly name = 'fake';
+
+  private readonly orders = new Map<string, FakeOrder>();
+  private readonly paymentsByOrder = new Map<string, string>();
+  private counter = 0;
+
+  private nextId(prefix: string): string {
+    this.counter += 1;
+    return `${prefix}_fake${String(this.counter).padStart(10, '0')}`;
+  }
+
+  async createOrder(input: {
+    amount: number;
+    receipt: string;
+    notes?: Record<string, string>;
+  }): Promise<PaymentOrder> {
+    if (!Number.isInteger(input.amount) || input.amount <= 0) {
+      throw new PaymentAdapterError(
+        `Order amount must be a positive integer in paise, got ${input.amount}`,
+        'provider_error',
+      );
+    }
+
+    const order: PaymentOrder = {
+      orderId: this.nextId('order'),
+      amount: input.amount,
+      currency: 'INR',
+      receipt: input.receipt,
+    };
+
+    this.orders.set(order.orderId, { order, refunded: 0 });
+    return order;
+  }
+
+  /**
+   * Stands in for the Seeker completing checkout. The real adapter has no equivalent - the
+   * provider's hosted widget does this - so it is only ever called from tests and the local
+   * dev checkout screen.
+   */
+  async simulateCheckout(orderId: string): Promise<CapturedPayment> {
+    const entry = this.orders.get(orderId);
+    if (!entry) {
+      throw new PaymentAdapterError(`Unknown order ${orderId}`, 'not_found');
+    }
+
+    if (entry.order.amount % 100 === FAIL_CAPTURE_SUFFIX) {
+      throw new PaymentAdapterError('Simulated capture failure', 'provider_error');
+    }
+
+    const payment: CapturedPayment = {
+      paymentId: this.nextId('pay'),
+      orderId,
+      amount: entry.order.amount,
+      method: 'upi',
+      capturedAt: new Date(),
+    };
+
+    entry.payment = payment;
+    this.paymentsByOrder.set(payment.paymentId, orderId);
+    return payment;
+  }
+
+  async fetchPayment(paymentId: string): Promise<CapturedPayment | null> {
+    const orderId = this.paymentsByOrder.get(paymentId);
+    if (!orderId) return null;
+    return this.orders.get(orderId)?.payment ?? null;
+  }
+
+  async verifyWebhookSignature(
+    rawBody: string,
+    signature: string,
+    secret: string,
+  ): Promise<boolean> {
+    const expected = await hmacHex(rawBody, secret);
+    return timingSafeEqual(expected, signature);
+  }
+
+  /** Test helper: produces a body a caller can hand back to verifyWebhookSignature. */
+  async signWebhook(rawBody: string, secret: string): Promise<string> {
+    return hmacHex(rawBody, secret);
+  }
+
+  parseWebhook(rawBody: string): WebhookEvent {
+    const parsed = JSON.parse(rawBody) as {
+      event?: string;
+      payload?: {
+        payment?: { entity?: { id?: string; order_id?: string; amount?: number } };
+      };
+    };
+    const entity = parsed.payload?.payment?.entity;
+
+    return {
+      type: parsed.event ?? 'unknown',
+      paymentId: entity?.id ?? null,
+      orderId: entity?.order_id ?? null,
+      amount: entity?.amount ?? null,
+      raw: parsed,
+    };
+  }
+
+  async refund(input: {
+    paymentId: string;
+    amount: number;
+    notes?: Record<string, string>;
+  }): Promise<RefundResult> {
+    const orderId = this.paymentsByOrder.get(input.paymentId);
+    const entry = orderId ? this.orders.get(orderId) : undefined;
+
+    if (!entry?.payment) {
+      throw new PaymentAdapterError(`Unknown payment ${input.paymentId}`, 'not_found');
+    }
+
+    const remaining = entry.payment.amount - entry.refunded;
+    if (input.amount > remaining) {
+      throw new PaymentAdapterError(
+        `Refund of ${input.amount} exceeds the ${remaining} still refundable`,
+        'provider_error',
+      );
+    }
+
+    entry.refunded += input.amount;
+    return { refundId: this.nextId('rfnd'), amount: input.amount, status: 'processed' };
+  }
+
+  async createPayout(request: PayoutRequest): Promise<PayoutResult> {
+    if (request.amount % 100 === FAIL_PAYOUT_SUFFIX) {
+      return {
+        payoutId: this.nextId('pout'),
+        status: 'failed',
+        failureReason: 'Simulated beneficiary account validation failure',
+      };
+    }
+
+    return { payoutId: this.nextId('pout'), status: 'processed' };
+  }
+
+  /** Test helper: wipes all state between cases. */
+  reset(): void {
+    this.orders.clear();
+    this.paymentsByOrder.clear();
+    this.counter = 0;
+  }
+}
+
+async function hmacHex(message: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}

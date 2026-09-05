@@ -1,0 +1,27 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env", ".env.local"],
+  "globalEnv": [
+    "NODE_ENV",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "NEXT_PUBLIC_MAPS_PROVIDER",
+    "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
+    "PAYMENTS_PROVIDER",
+    "RAZORPAY_KEY_ID",
+    "RAZORPAY_KEY_SECRET",
+    "RAZORPAY_WEBHOOK_SECRET",
+    "NOTIFICATIONS_PROVIDER",
+    "MSG91_AUTH_KEY",
+    "NEXT_PUBLIC_SENTRY_DSN",
+    "NEXT_PUBLIC_POSTHOG_KEY"
+  ],
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**", "dist/**"] },
+    "dev": { "cache": false, "persistent": true },
+    "lint": { "dependsOn": ["^build"] },
+    "typecheck": { "dependsOn": ["^build"] },
+    "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] }
+  }
+}
