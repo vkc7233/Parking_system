@@ -13,6 +13,7 @@
  */
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { parseIndianMobile } from '@parking/core';
 import { createClient } from '@/lib/supabase/server';
 
 export interface AuthState {
@@ -22,13 +23,13 @@ export interface AuthState {
   otpSent?: boolean;
 }
 
-// Indian mobile numbers: 10 digits starting 6-9, with or without the +91 country code.
+// Parsing lives in @parking/core so the login form, the display formatter and the seed all
+// agree on what a valid number is - and on which of the two formats they are holding.
 const phoneSchema = z
   .string()
-  .trim()
-  .transform((value) => value.replace(/[\s-]/g, ''))
-  .pipe(z.string().regex(/^(?:\+?91)?[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'))
-  .transform((value) => `+91${value.replace(/^\+?91/, '')}`);
+  .transform((value) => parseIndianMobile(value))
+  .refine((parsed) => parsed !== null, 'Enter a valid 10-digit Indian mobile number')
+  .transform((parsed) => parsed!.e164);
 
 const otpSchema = z
   .string()

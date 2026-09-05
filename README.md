@@ -39,15 +39,26 @@ them, and Docker recreates them on the next start.
 
 ### Signing in locally
 
-Auth is phone-OTP only, no passwords (spec §7.1). In local development Supabase prints the
-code to its own logs rather than sending an SMS:
+Auth is phone-OTP only, no passwords (spec §7.1). Locally there is no SMS provider at all —
+`supabase/config.toml` maps the seeded numbers to fixed codes under `[auth.sms.test_otp]`, so
+sign-in works offline. Enter the 10-digit number; the code is `1000` plus its last two digits.
 
-```bash
-pnpm exec supabase logs auth
-```
+| Sign in as   | Number       | Code     | Role   |
+| ------------ | ------------ | -------- | ------ |
+| Priya Admin  | `9000000001` | `100001` | admin  |
+| Meena Shah   | `9000000002` | `100002` | host   |
+| Kiran Patel  | `9000000003` | `100003` | host   |
+| Rohan Desai  | `9000000004` | `100004` | seeker |
+| Anjali Mehta | `9000000005` | `100005` | seeker |
 
-The seed creates `+919000000001` (admin), `+919000000002` and `+919000000003` (hosts), and
-`+919000000004` and `+919000000005` (seekers).
+In production none of this applies: Supabase Auth routes OTP delivery through a custom SMS
+hook to MSG91 (spec §9.5).
+
+**Two things to know if you ever hand-seed an `auth.users` row.** Supabase Auth stores phone
+numbers _without_ the leading `+`, and it scans its token columns (`confirmation_token`,
+`recovery_token`, and friends) into Go strings, so they must be `''` rather than NULL. Get
+either wrong and sign-in either creates a silent duplicate account or returns a 500. Both are
+guarded by assertions in `supabase/tests/schema_checks.sql`.
 
 ## Repository layout
 
@@ -77,7 +88,7 @@ docs/         Specification, assumptions, build status
 | `pnpm db:start` / `pnpm db:stop`             | Local Supabase stack                               |
 | `pnpm db:reset`                              | Reapplies every migration, then the seed           |
 | `pnpm db:types`                              | Regenerates `packages/types/src/database.types.ts` |
-| `pnpm db:check`                              | Runs the 44 schema behaviour assertions            |
+| `pnpm db:check`                              | Runs the 47 schema behaviour assertions            |
 | `pnpm format`                                | Prettier across the repo                           |
 
 Run `pnpm db:types` after every migration and commit the result, so CI type-checks against the
@@ -121,6 +132,7 @@ capture, and a payout ending in `07` paise fails.
 Sprint 0 (Foundation) is complete and verified against a real database: monorepo, schema with
 PostGIS and RLS, domain logic with tests, vendor adapters, phone-OTP auth, and CI.
 
-56 unit tests, 44 schema behaviour checks, lint and typecheck clean, production build green.
+63 unit tests, 47 schema behaviour checks, lint and typecheck clean, production build green.
+The phone-OTP sign-in flow is verified end to end in a browser against the live database.
 Sprints 1–7 are outlined in spec §14 and tracked in
 [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).

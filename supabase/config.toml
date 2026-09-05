@@ -254,25 +254,36 @@ otp_expiry = 3600
 # content_path = "./supabase/templates/password_changed_notification.html"
 
 [auth.sms]
-# Allow/disallow new user signups via SMS to your project.
-enable_signup = false
-# If enabled, users need to confirm their phone number before signing in.
+# Phone-OTP is the ONLY credential in this product (spec 7.1) - there is no password anywhere,
+# so this must be on or nothing can sign in.
+enable_signup = true
+# The OTP itself proves possession of the number, so a second confirmation step would just be
+# a second SMS for the same fact.
 enable_confirmations = false
-# Template for sending OTP to users
-template = "Your code is {{ .Code }}"
-# Controls the minimum amount of time that must pass before sending another sms otp.
-max_frequency = "5s"
+template = "Your Parking Marketplace code is {{ .Code }}"
+# Assumption A15: 30-second resend cooldown. OTP endpoints are the standard target for
+# SMS-pumping fraud, and the cost lands on the platform's MSG91 bill rather than the attacker's.
+max_frequency = "30s"
 
-# Use pre-defined map of phone number to OTP for testing.
-# [auth.sms.test_otp]
-# 4152127777 = "123456"
+# Fixed codes for local development and CI, so no SMS provider is needed to sign in.
+#
+# These apply ONLY to the local stack. In production, Supabase Auth routes OTP delivery through
+# a custom SMS hook to MSG91 (spec 9.5) and this block does not exist.
+#
+# Keys are the phone number without the leading '+'. These are the seeded accounts from
+# supabase/seed.sql.
+[auth.sms.test_otp]
+919000000001 = "100001"
+919000000002 = "100002"
+919000000003 = "100003"
+919000000004 = "100004"
+919000000005 = "100005"
 
-# Configure logged in session timeouts.
-# [auth.sessions]
-# Force log out after the specified duration.
-# timebox = "24h"
-# Force log out if the user has been inactive longer than the specified duration.
-# inactivity_timeout = "8h"
+# Assumption A15: 30-day sessions for Seekers and Hosts. The shorter 12-hour Admin session is a
+# per-role rule GoTrue config cannot express; it is enforced in the app when the Admin panel
+# lands in Sprint 6.
+[auth.sessions]
+timebox = "720h"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
 # [auth.hook.before_user_created]
@@ -284,13 +295,20 @@ max_frequency = "5s"
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
-# Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+# LOCAL DEVELOPMENT ONLY - these are deliberately fake credentials.
+#
+# The Supabase CLI refuses to enable phone login unless some SMS provider is declared, and it
+# ignores [auth.sms.test_otp] without one. Since every number we sign in with locally is listed
+# in test_otp, Auth returns the fixed code and never reaches Twilio, so no real credentials are
+# needed and no SMS is ever sent.
+#
+# Production does not use this block at all: Supabase Auth routes OTP delivery through a custom
+# SMS hook to MSG91 (spec 9.5), which is what gives India-specific delivery economics.
 [auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
-# DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
-auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
+enabled = true
+account_sid = "local-development-not-a-real-sid"
+message_service_sid = "local-development-not-a-real-sid"
+auth_token = "local-development-not-a-real-token"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]

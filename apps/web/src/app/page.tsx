@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PAYOUT, PILOT_CITY } from '@parking/config';
+import { formatPhoneForDisplay } from '@parking/core';
 import { createClient } from '@/lib/supabase/server';
 import { signOut } from './login/actions';
 
@@ -43,7 +44,7 @@ export default async function HomePage() {
           <dl className="mt-3 space-y-1 text-sm text-slate-600">
             <div className="flex gap-2">
               <dt className="font-medium text-slate-700">Phone</dt>
-              <dd>{user.phone ?? '-'}</dd>
+              <dd>{formatPhoneForDisplay(user.phone) || '-'}</dd>
             </div>
             <div className="flex gap-2">
               <dt className="font-medium text-slate-700">Role</dt>

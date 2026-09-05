@@ -54,6 +54,26 @@ select pg_temp.record('seed: roles assigned (1 admin, 2 hosts, 2 seekers)',
       and count(*) filter (where role = 'seeker') = 2
    from public.users));
 
+-- Supabase Auth stores phone numbers without the leading '+'. A seeded account written with
+-- one is unreachable: the first real login does not match it and silently creates a second,
+-- empty account instead.
+select pg_temp.record('seed: phones use the format Supabase Auth stores (no leading +)',
+  (select bool_and(phone not like '+%') from public.users),
+  (select string_agg(phone, ', ') from public.users where phone like '+%'));
+
+-- GoTrue scans these into Go `string` fields; a NULL makes every sign-in for that account
+-- fail with a 500 ("converting NULL to string is unsupported").
+select pg_temp.record('seed: auth token columns are empty strings, never NULL',
+  (select bool_and(
+     confirmation_token is not null and recovery_token is not null
+     and email_change_token_new is not null and email_change_token_current is not null
+     and email_change is not null and phone_change is not null
+     and phone_change_token is not null and reauthentication_token is not null)
+   from auth.users));
+
+select pg_temp.record('seed: every seeded auth user maps to exactly one profile',
+  (select count(*) = (select count(*) from auth.users) from public.users));
+
 select pg_temp.record('seed: 4 live listings, 1 paused',
   (select count(*) filter (where status = 'live') = 4
       and count(*) filter (where status = 'paused') = 1

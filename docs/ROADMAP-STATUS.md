@@ -21,7 +21,8 @@ Tracks the sprint plan in specification §14. Update the status column as work l
   dispute and audit tables the acceptance criteria imply. PostGIS geography points with GiST
   indexes, RLS on every table, and lifecycle rules enforced by trigger rather than by UI.
 - **Domain logic** — pricing, refunds, the booking state machine, access-pass issue/verify,
-  checkout holds, and payout eligibility, in `packages/core` with 56 passing tests and no
+  checkout holds, payout eligibility and phone parsing, in `packages/core` with 63 passing
+  tests and no
   framework dependency, so Phase 2 reuses it as-is.
 - **Vendor adapters** — Razorpay, MSG91, and Google Maps, each behind an interface with a
   working fake (spec §16 lead-time risk).
@@ -38,12 +39,12 @@ Tracks the sprint plan in specification §14. Update the status column as work l
   and minimum, host-cancellation consequences, listing re-approval rules, auth rate limits,
   the review window, and data retention.
 
-Verified locally: 56/56 unit tests pass, 44/44 schema checks pass, lint and typecheck clean
+Verified locally: 63/63 unit tests pass, 47/47 schema checks pass, lint and typecheck clean
 across all 7 packages, production build succeeds.
 
 **Database verified.** All 8 migrations and the seed apply cleanly to Postgres 17.6 with
-PostGIS. All 14 public tables have RLS enabled. `supabase/tests/schema_checks.sql` runs 44
-behavioural assertions against a freshly reset database and all 44 pass — capacity limits,
+PostGIS. All 14 public tables have RLS enabled. `supabase/tests/schema_checks.sql` runs 47
+behavioural assertions against a freshly reset database and all 47 pass — capacity limits,
 checkout holds, the payout dispute hold, listing re-approval, the review window, host
 suspension and the cancellation limit. Run it with `pnpm db:check`; CI runs it on every pull
 request.
@@ -51,6 +52,13 @@ request.
 End-to-end through PostgREST with the anon key: the nearby search returns the 4 live seed
 listings ordered by distance, and direct reads of `bookings` and `users` return nothing —
 RLS holds against the auto-generated API, which is what spec §11 asks for.
+
+### Auth verified in a browser
+
+Phone-OTP sign-in works end to end against the live stack: sign in as a seeded host and the
+app shows their real name and `host` role; resend keeps the number; a signed-in host hitting
+`/admin` gets "Page not found" rather than a 403 that would reveal the panel exists (§8.4).
+Local sign-in needs no SMS provider — `config.toml` maps the seeded numbers to fixed codes.
 
 ### Bugs the database run caught
 
@@ -67,6 +75,27 @@ schema behaviour suite in CI rather than trusting that the SQL parses:
 2. **`payout_eligible_at` could not be a generated column.** `timestamptz + interval` is STABLE,
    not IMMUTABLE, so the migration was rejected outright. Replaced with a plain index on
    `end_time` and the window expressed in the queries.
+
+### Bugs the browser run caught
+
+Three more, none of which any automated check would have found, because they only appear when
+a real person signs in:
+
+3. **Local phone auth was disabled entirely.** Supabase local ships with no SMS provider, so
+   every sign-in returned `phone_provider_disabled`. The Sprint 0 deliverable "phone-OTP auth
+   working end to end" was never actually exercised. Fixed by configuring `[auth.sms]` with
+   `test_otp` codes for the seeded numbers.
+4. **Seeded accounts were unreachable.** Supabase Auth stores phone numbers _without_ the
+   leading `+`; the seed wrote them with one. Signing in as a seeded host silently created a
+   _second_, empty seeker account instead of logging into theirs — so the host and admin seed
+   data could never have been used.
+5. **Seeded `auth.users` rows crashed GoTrue.** Its token columns are scanned into Go strings,
+   and the seed left them NULL, so every sign-in for a seeded account returned a 500
+   ("converting NULL to string is unsupported").
+
+Plus one React bug in the login form: the "Send a new code" button carried `name`/`value`
+alongside a `formAction`, which React overrides — so resending would have submitted without a
+phone number. Assertions for 4 and 5 are now in the schema check suite.
 
 ## Deliberate additions beyond the specification
 

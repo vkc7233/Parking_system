@@ -7,6 +7,7 @@
  * new user never leaves the page, and a navigation between steps is where that time goes.
  */
 import { useActionState, useEffect, useRef } from 'react';
+import { formatPhoneForDisplay } from '@parking/core';
 import { sendOtp, verifyOtp, type AuthState } from './actions';
 
 const initialState: AuthState = {};
@@ -80,7 +81,7 @@ export function LoginForm({ next }: { next: string }) {
 
       <div className="space-y-2">
         <label htmlFor="token" className="block text-sm font-medium text-slate-700">
-          Enter the code sent to {formatPhone(phone)}
+          Enter the code sent to {formatPhoneForDisplay(phone)}
         </label>
         <input
           ref={codeRef}
@@ -108,11 +109,14 @@ export function LoginForm({ next }: { next: string }) {
         {verifying ? 'Verifying...' : 'Verify and continue'}
       </button>
 
+      {/*
+        No name/value here: React overrides a button's own name when it also carries a
+        formAction, because it needs that slot to encode which action to invoke. The hidden
+        phone input above is what actually carries the number to the resend action.
+      */}
       <button
         type="submit"
         formAction={sendAction}
-        name="phone"
-        value={phone}
         className="w-full text-sm text-slate-600 underline underline-offset-4 hover:text-slate-900"
       >
         Send a new code
@@ -127,9 +131,4 @@ function ErrorMessage({ children }: { children: React.ReactNode }) {
       {children}
     </p>
   );
-}
-
-function formatPhone(phone: string): string {
-  const digits = phone.replace('+91', '');
-  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }

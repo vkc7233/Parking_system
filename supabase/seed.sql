@@ -11,27 +11,47 @@
 -- ---------------------------------------------------------------------------
 -- Phone-OTP accounts (spec 7.1), so there is no password to set. The on_auth_user_created
 -- trigger creates the matching public.users row for each of these.
+--
+-- Phone numbers are stored WITHOUT the leading '+'. That is the format Supabase Auth (GoTrue)
+-- normalises to, and signing in matches on it exactly - seed a number as '+9190...' and the
+-- first real login creates a SECOND, empty account instead of logging into this one.
+--
+-- The local sign-in codes for these numbers are in supabase/config.toml under
+-- [auth.sms.test_otp]: the code is 1000 followed by the last two digits of the number.
+
+--
+-- The empty-string token columns below are not decoration. Supabase Auth (GoTrue) scans them
+-- into Go `string` fields, so a NULL makes it fail with
+--   "Scan error on column confirmation_token: converting NULL to string is unsupported"
+-- and every sign-in for that account returns a 500. They must be '' , not NULL.
 
 insert into auth.users (
   instance_id, id, aud, role, phone, phone_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change_token_current,
+  email_change, phone_change, phone_change_token, reauthentication_token
 )
 values
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000001',
-   'authenticated', 'authenticated', '+919000000001', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Priya Admin"}', now(), now()),
+   'authenticated', 'authenticated', '919000000001', now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Priya Admin"}', now(), now(),
+   '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000002',
-   'authenticated', 'authenticated', '+919000000002', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Meena Shah"}', now(), now()),
+   'authenticated', 'authenticated', '919000000002', now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Meena Shah"}', now(), now(),
+   '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000003',
-   'authenticated', 'authenticated', '+919000000003', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Kiran Patel"}', now(), now()),
+   'authenticated', 'authenticated', '919000000003', now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Kiran Patel"}', now(), now(),
+   '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000004',
-   'authenticated', 'authenticated', '+919000000004', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Rohan Desai"}', now(), now()),
+   'authenticated', 'authenticated', '919000000004', now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Rohan Desai"}', now(), now(),
+   '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000005',
-   'authenticated', 'authenticated', '+919000000005', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Anjali Mehta"}', now(), now())
+   'authenticated', 'authenticated', '919000000005', now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Anjali Mehta"}', now(), now(),
+   '', '', '', '', '', '', '', '')
 on conflict (id) do nothing;
 
 update public.users set name = 'Priya Admin', role = 'admin', kyc_status = 'verified'
