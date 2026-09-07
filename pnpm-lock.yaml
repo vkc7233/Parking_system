@@ -181,6 +181,9 @@ importers:
       '@parking/core':
         specifier: workspace:*
         version: link:../core
+      '@parking/types':
+        specifier: workspace:*
+        version: link:../types
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

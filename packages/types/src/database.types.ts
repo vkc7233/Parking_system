@@ -504,6 +504,8 @@ export type Database = {
           description: string | null;
           host_id: string;
           id: string;
+          lat: number | null;
+          lng: number | null;
           locality: string | null;
           location: unknown;
           paused_at: string | null;
@@ -533,6 +535,8 @@ export type Database = {
           description?: string | null;
           host_id: string;
           id?: string;
+          lat?: number | null;
+          lng?: number | null;
           locality?: string | null;
           location: unknown;
           paused_at?: string | null;
@@ -562,6 +566,8 @@ export type Database = {
           description?: string | null;
           host_id?: string;
           id?: string;
+          lat?: number | null;
+          lng?: number | null;
           locality?: string | null;
           location?: unknown;
           paused_at?: string | null;
@@ -1059,6 +1065,11 @@ export type Database = {
         Args: { p_end_time: string; p_listing_id: string; p_start_time: string };
         Returns: number;
       };
+      promote_to_host: { Args: never; Returns: undefined };
+      repack_listing_photo_positions: {
+        Args: { p_listing_id: string };
+        Returns: undefined;
+      };
       search_nearby_listings: {
         Args: {
           p_end_time?: string;
@@ -1104,6 +1115,28 @@ export type Database = {
           completed_at: string;
           reference: string;
         }[];
+      };
+      upsert_listing: {
+        Args: {
+          p_address_line: string;
+          p_available_from?: string;
+          p_available_until?: string;
+          p_capacity?: number;
+          p_city: string;
+          p_description?: string;
+          p_id?: string;
+          p_lat: number;
+          p_lng: number;
+          p_locality?: string;
+          p_pincode?: string;
+          p_price_per_day?: number;
+          p_price_per_hour: number;
+          p_rules?: string;
+          p_spot_type: Database['public']['Enums']['spot_type'];
+          p_state?: string;
+          p_title: string;
+        };
+        Returns: string;
       };
     };
     Enums: {

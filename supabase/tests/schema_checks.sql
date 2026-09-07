@@ -444,6 +444,170 @@ select pg_temp.expect_failure(
   '14-day review window');
 
 -- ---------------------------------------------------------------------------
+-- Sprint 1: listing RPCs and RLS under a real session
+-- ---------------------------------------------------------------------------
+-- Everything above runs as the postgres superuser, which bypasses RLS. These blocks set
+-- `role` and `request.jwt.claims` so auth.uid() resolves, which is the only way to test that
+-- the policies actually hold rather than merely that they parse.
+--
+-- set_config(..., true) is transaction-local and a DO block is one transaction, so the role is
+-- restored explicitly before recording the result (the recording insert needs the owner).
+
+do $$
+declare
+  v_id uuid;
+  v_ok boolean := false;
+  v_detail text;
+begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-000000000002","role":"authenticated"}', true);
+
+  begin
+    v_id := public.upsert_listing(
+      p_title => 'RPC created listing',
+      p_address_line => '1 RPC Road',
+      p_city => 'Ahmedabad',
+      p_lat => 23.0339,
+      p_lng => 72.5613,
+      p_spot_type => 'covered',
+      p_price_per_hour => 3000
+    );
+    v_ok := v_id is not null;
+  exception when others then
+    v_detail := sqlerrm;
+  end;
+
+  perform set_config('role', 'postgres', true);
+  perform pg_temp.record('RPC: a host can create their own listing', v_ok, v_detail);
+
+  if v_ok then
+    perform pg_temp.record('RPC: the new listing starts as a draft',
+      (select status = 'draft' from public.listings where id = v_id));
+
+    -- The single easiest PostGIS mistake is swapping x and y; this catches it.
+    perform pg_temp.record('RPC: lat/lng round-trip through the geography point',
+      (select round(lat::numeric, 4) = 23.0339 and round(lng::numeric, 4) = 72.5613
+         from public.listings where id = v_id),
+      (select format('lat=%s lng=%s', round(lat::numeric, 4), round(lng::numeric, 4))
+         from public.listings where id = v_id));
+
+    perform pg_temp.record('RPC: the listing is owned by the calling host',
+      (select host_id = '00000000-0000-4000-8000-000000000002' from public.listings where id = v_id));
+  end if;
+end;
+$$;
+
+-- RLS: one host must not be able to edit another's listing.
+do $$
+declare
+  v_blocked boolean := false;
+  v_detail text;
+begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-000000000003","role":"authenticated"}', true);
+
+  begin
+    perform public.upsert_listing(
+      p_id => '10000000-0000-4000-8000-000000000001',  -- belongs to host 0002
+      p_title => 'Hijacked',
+      p_address_line => 'x',
+      p_city => 'Ahmedabad',
+      p_lat => 23.0,
+      p_lng => 72.5,
+      p_spot_type => 'open',
+      p_price_per_hour => 100
+    );
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+
+  perform set_config('role', 'postgres', true);
+  perform pg_temp.record('RLS: a host cannot edit another host''s listing', v_blocked, v_detail);
+end;
+$$;
+
+select pg_temp.record('RLS: the other host''s listing is untouched',
+  (select title <> 'Hijacked' from public.listings
+    where id = '10000000-0000-4000-8000-000000000001'));
+
+-- promote_to_host: seeker -> host only, never anything else.
+do $$
+declare
+  v_before public.user_role;
+  v_after public.user_role;
+  v_admin_after public.user_role;
+begin
+  select role into v_before from public.users where id = '00000000-0000-4000-8000-000000000005';
+
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-000000000005","role":"authenticated"}', true);
+  perform public.promote_to_host();
+  perform set_config('role', 'postgres', true);
+
+  select role into v_after from public.users where id = '00000000-0000-4000-8000-000000000005';
+
+  perform pg_temp.record('promote_to_host: a seeker becomes a host',
+    v_before = 'seeker' and v_after = 'host', format('%s -> %s', v_before, v_after));
+
+  -- An admin calling it must stay an admin; the function must not touch them.
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
+  perform public.promote_to_host();
+  perform set_config('role', 'postgres', true);
+
+  select role into v_admin_after from public.users where id = '00000000-0000-4000-8000-000000000001';
+  perform pg_temp.record('promote_to_host: an admin is left alone', v_admin_after = 'admin',
+    v_admin_after::text);
+end;
+$$;
+
+-- A seeker must not be able to promote themselves to admin through the profile policy.
+do $$
+declare
+  v_blocked boolean := false;
+  v_role public.user_role;
+begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}', true);
+
+  begin
+    update public.users set role = 'admin' where id = '00000000-0000-4000-8000-000000000004';
+  exception when others then
+    v_blocked := true;
+  end;
+
+  perform set_config('role', 'postgres', true);
+
+  select role into v_role from public.users where id = '00000000-0000-4000-8000-000000000004';
+  perform pg_temp.record('RLS: a user cannot make themselves an admin', v_role <> 'admin',
+    v_role::text);
+end;
+$$;
+
+-- Photo positions: deleting from the middle must not leave a gap the next insert collides with.
+insert into public.listing_photos (listing_id, storage_path, position)
+values
+  ('10000000-0000-4000-8000-000000000001', 'test/p3.jpg', 2),
+  ('10000000-0000-4000-8000-000000000001', 'test/p4.jpg', 3);
+
+delete from public.listing_photos
+ where listing_id = '10000000-0000-4000-8000-000000000001' and position = 2;
+
+select public.repack_listing_photo_positions('10000000-0000-4000-8000-000000000001');
+
+select pg_temp.record('photos: positions are re-packed with no gaps after a delete',
+  (select array_agg(position order by position) = array[0, 1, 2]
+     from public.listing_photos where listing_id = '10000000-0000-4000-8000-000000000001'),
+  (select array_agg(position order by position)::text
+     from public.listing_photos where listing_id = '10000000-0000-4000-8000-000000000001'));
+
+-- ---------------------------------------------------------------------------
 -- Host conduct and suspension (spec 7.3, A13)
 -- ---------------------------------------------------------------------------
 
@@ -504,6 +668,37 @@ select pg_temp.record('A13: the third host cancellation in 90 days pauses their 
 select pg_temp.record('A13: the auto-pause is recorded in the admin audit log',
   (select count(*) >= 1 from public.admin_audit_log
     where action = 'auto_pause_host_listings'));
+
+-- A suspended host must not be able to keep listing. This is the same RLS policy the Sprint 1
+-- RPC check relies on, verified from the other direction.
+do $$
+declare
+  v_blocked boolean := false;
+  v_detail text;
+begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-000000000002","role":"authenticated"}', true);
+
+  begin
+    perform public.upsert_listing(
+      p_title => 'Listing by a suspended host',
+      p_address_line => '1 Suspended Street',
+      p_city => 'Ahmedabad',
+      p_lat => 23.03,
+      p_lng => 72.56,
+      p_spot_type => 'open',
+      p_price_per_hour => 3000
+    );
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+
+  perform set_config('role', 'postgres', true);
+  perform pg_temp.record('RLS: a suspended host cannot create a listing', v_blocked, v_detail);
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Results

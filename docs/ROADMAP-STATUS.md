@@ -5,7 +5,7 @@ Tracks the sprint plan in specification §14. Update the status column as work l
 | Sprint     | Focus                                                            | Status                   |
 | ---------- | ---------------------------------------------------------------- | ------------------------ |
 | 0 (Week 1) | Foundation                                                       | **Complete** — see below |
-| 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | Not started              |
+| 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | **Complete** — see below |
 | 2 (Week 3) | Host Listing Agreement e-signature, Admin approval queue         | Not started              |
 | 3 (Week 4) | Map + list search, filters, listing detail                       | Not started              |
 | 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | Not started              |
@@ -39,12 +39,12 @@ Tracks the sprint plan in specification §14. Update the status column as work l
   and minimum, host-cancellation consequences, listing re-approval rules, auth rate limits,
   the review window, and data retention.
 
-Verified locally: 63/63 unit tests pass, 47/47 schema checks pass, lint and typecheck clean
+Verified locally: 63/63 unit tests pass, 58/58 schema checks pass, lint and typecheck clean
 across all 7 packages, production build succeeds.
 
 **Database verified.** All 8 migrations and the seed apply cleanly to Postgres 17.6 with
-PostGIS. All 14 public tables have RLS enabled. `supabase/tests/schema_checks.sql` runs 47
-behavioural assertions against a freshly reset database and all 47 pass — capacity limits,
+PostGIS. All 14 public tables have RLS enabled. `supabase/tests/schema_checks.sql` runs 58
+behavioural assertions against a freshly reset database and all 58 pass — capacity limits,
 checkout holds, the payout dispute hold, listing re-approval, the review window, host
 suspension and the cancellation limit. Run it with `pnpm db:check`; CI runs it on every pull
 request.
@@ -97,6 +97,50 @@ Plus one React bug in the login form: the "Send a new code" button carried `name
 alongside a `formAction`, which React overrides — so resending would have submitted without a
 phone number. Assertions for 4 and 5 are now in the schema check suite.
 
+## Sprint 1 — delivered
+
+Verified end to end in a browser, signing in as a seeker with no listings and going all the way
+to a listing submitted for approval.
+
+- **Host onboarding (KYC-lite)** — three documents (identity, address, bank) uploaded to a
+  **private** Storage bucket namespaced by user id, recorded as `pending` for Admin review
+  (spec §6.2 step 2, §7.2). Re-uploading replaces the previous attempt rather than leaving an
+  Admin to guess which of several files is current. A rejection shows its reason.
+- **Create / edit listing** — full form with address lookup, spot type, capacity, hourly price
+  and optional daily cap, availability hours and house rules. Saved as a draft first; nothing is
+  visible to anyone else until it is submitted and approved.
+- **Photo upload** — browser-direct to Supabase Storage (a server action body is capped at 1MB
+  and photos are allowed 5MB), then recorded by a server action that re-checks the path. Cover
+  photo, removal, and position re-packing so a deletion cannot collide with the next insert.
+- **Lifecycle controls** — submit for approval, pause, reactivate, delete. Which buttons exist
+  is driven by status, so a Host is never offered an action the database would refuse; the
+  remaining blockers ("add 1 more photo", "finish onboarding") are named before they click.
+- **Role promotion** — a Seeker becomes a Host by listing a space (spec §8.4), through a narrow
+  `promote_to_host()` that can only ever move `seeker` to `host` and never grants admin.
+
+Schema additions: `upsert_listing` and `promote_to_host` RPCs, photo position re-packing, and
+generated `lat`/`lng` columns (PostgREST returns a geography column as WKB hex, which cannot
+re-populate an edit form).
+
+### What is deliberately not here yet
+
+- **A visual map pin.** Spec §6.2 describes pinning on a map. The picker captures an exact,
+  confirmed lat/lng from a real address lookup — which is what the schema needs — but drawing
+  the map waits for Sprint 3, when the Maps JavaScript API arrives for Seeker search. Loading
+  and paying for a map before then buys nothing.
+- **The Host Listing Agreement e-signature.** That is Sprint 2, and the database already
+  refuses to let any listing go live without one.
+
+### Bugs found by running the flow
+
+- **The street address never prefilled.** Choosing an address from the lookup set the
+  coordinates but left the address field blank, because the input was keyed on the resolved
+  address while still reading its default from the _initial_ value. Every new listing would
+  have been saved with an empty street address unless the Host retyped it.
+- A test-harness trap worth recording: `document.querySelector('[name="description"]')` matches
+  Next's `<meta name="description">` in the head, not the form field. Anything scripting these
+  forms must scope its queries to the form.
+
 ## Deliberate additions beyond the specification
 
 Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on request.
@@ -115,7 +159,14 @@ Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on
 - **`disputes` table** — §6.3 and §7.3 both require dispute handling, but §10's data model has
   nowhere to record one. Payout eligibility depends on it (A11).
 
-## Open items carried into Sprint 1
+## Known issues
+
+- A signed-in session dropped once during Sprint 1 testing, redirecting to the login page
+  mid-flow. Re-signing in restored it and the `?next=` redirect returned to exactly the right
+  page, so the recovery path works. Cause not yet identified; worth watching during Sprint 2
+  rather than guessing at it now.
+
+## Open items carried into Sprint 2
 
 - Confirm or replace the assumption defaults, especially the platform fee (A1) and
   cancellation policy (A2) — both need to match what legal counsel publishes.

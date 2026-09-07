@@ -31,7 +31,8 @@ The app runs at http://localhost:3000 and Supabase Studio at http://localhost:54
 **Docker is required** for the local database. On Windows, Docker Desktop needs the WSL2
 backend (`wsl --install`, then reboot).
 
-If Docker Desktop starts and immediately reports "an unexpected error occurred", check
+If Docker Desktop starts and immediately reports "an unexpected error occurred", run
+`pnpm docker:up`, which clears the usual cause automatically. To diagnose it by hand, check
 `%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`. Orphaned unix-socket files
 under `%LOCALAPPDATA%\Docker\run` and `%LOCALAPPDATA%\docker-secrets-engine` survive an
 unclean shutdown and cannot be deleted normally; renaming the containing directory clears
@@ -80,16 +81,17 @@ docs/         Specification, assumptions, build status
 
 ## Commands
 
-| Command                                      | What it does                                       |
-| -------------------------------------------- | -------------------------------------------------- |
-| `pnpm dev`                                   | Runs the web app with hot reload                   |
-| `pnpm build`                                 | Production build                                   |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` | The three CI gates                                 |
-| `pnpm db:start` / `pnpm db:stop`             | Local Supabase stack                               |
-| `pnpm db:reset`                              | Reapplies every migration, then the seed           |
-| `pnpm db:types`                              | Regenerates `packages/types/src/database.types.ts` |
-| `pnpm db:check`                              | Runs the 47 schema behaviour assertions            |
-| `pnpm format`                                | Prettier across the repo                           |
+| Command                                      | What it does                                            |
+| -------------------------------------------- | ------------------------------------------------------- |
+| `pnpm dev`                                   | Runs the web app with hot reload                        |
+| `pnpm build`                                 | Production build                                        |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | The three CI gates                                      |
+| `pnpm db:start` / `pnpm db:stop`             | Local Supabase stack                                    |
+| `pnpm db:reset`                              | Reapplies every migration, then the seed                |
+| `pnpm db:types`                              | Regenerates `packages/types/src/database.types.ts`      |
+| `pnpm db:check`                              | Runs the 58 schema behaviour assertions                 |
+| `pnpm format`                                | Prettier across the repo                                |
+| `pnpm docker:up`                             | Starts Docker, clearing the stale sockets that block it |
 
 Run `pnpm db:types` after every migration and commit the result, so CI type-checks against the
 same schema you developed against.
@@ -132,7 +134,9 @@ capture, and a payout ending in `07` paise fails.
 Sprint 0 (Foundation) is complete and verified against a real database: monorepo, schema with
 PostGIS and RLS, domain logic with tests, vendor adapters, phone-OTP auth, and CI.
 
-63 unit tests, 47 schema behaviour checks, lint and typecheck clean, production build green.
+Sprint 1 (Host onboarding, listings, photo upload) is complete and verified in a browser.
+
+63 unit tests, 58 schema behaviour checks, lint and typecheck clean, production build green.
 The phone-OTP sign-in flow is verified end to end in a browser against the live database.
-Sprints 1–7 are outlined in spec §14 and tracked in
+Sprints 2–7 are outlined in spec §14 and tracked in
 [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).
