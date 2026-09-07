@@ -9,24 +9,58 @@ Everything the spec left open is decided and justified in
 [`docs/ASSUMPTIONS.md`](docs/ASSUMPTIONS.md); current build progress is in
 [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).
 
-## Quick start
+## Running it
+
+You need **Node 20+**, **pnpm 10+**, and **Docker Desktop running**. Nothing else — no Supabase
+account, no API keys, no SMS provider.
+
+Four commands, in order:
 
 ```bash
 pnpm install
 ```
 
 ```bash
-cp .env.example .env.local
+pnpm bootstrap
 ```
-
-Then start the database and the app:
 
 ```bash
-pnpm db:start && pnpm db:reset && pnpm dev
+pnpm db:start && pnpm db:reset
 ```
 
-`pnpm db:start` prints the local anon and service-role keys — paste them into `.env.local`.
-The app runs at http://localhost:3000 and Supabase Studio at http://localhost:54323.
+```bash
+pnpm dev
+```
+
+The app is at **http://localhost:3000**, Supabase Studio at **http://localhost:54323**, and
+the inbox for local email at **http://localhost:54324**.
+
+What each step does:
+
+| Step             | What happens                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm install`   | Installs the workspace                                                                                                                     |
+| `pnpm bootstrap` | Writes `apps/web/.env.local` from `.env.example` and generates an access-pass secret. Safe to re-run; it never overwrites an existing file |
+| `pnpm db:start`  | Starts Postgres + PostGIS, Auth, Storage and Studio in Docker. Slow the first time while images download                                   |
+| `pnpm db:reset`  | Applies all 9 migrations, then the seed — 5 users and 5 listings around Ahmedabad                                                          |
+| `pnpm dev`       | Runs the web app with hot reload                                                                                                           |
+
+Afterwards, `pnpm dev` on its own is enough — the database keeps running in Docker until you
+stop it with `pnpm db:stop`.
+
+### If something goes wrong
+
+**Docker Desktop will not start** (it opens and immediately reports "an unexpected error
+occurred"): run `pnpm docker:up`. Docker leaves unix-socket files behind after an unclean
+shutdown that Windows then refuses to delete, and it crashes on them at startup. The script
+clears them and waits for the engine.
+
+**The app returns 500 on every page** after a lot of editing: the dev bundle has gone stale.
+Stop the server, `rm -rf apps/web/.next`, and start it again. If `pnpm build` succeeds, the code
+is fine and it is only the dev cache.
+
+**Port 3000 is in use:** `pnpm dev` will fail rather than silently move. Free the port — the
+local Supabase auth config expects the app on 3000.
 
 **Docker is required** for the local database. On Windows, Docker Desktop needs the WSL2
 backend (`wsl --install`, then reboot).
@@ -91,6 +125,7 @@ docs/         Specification, assumptions, build status
 | `pnpm db:types`                              | Regenerates `packages/types/src/database.types.ts`      |
 | `pnpm db:check`                              | Runs the 58 schema behaviour assertions                 |
 | `pnpm format`                                | Prettier across the repo                                |
+| `pnpm bootstrap`                             | Writes `apps/web/.env.local` for a fresh checkout       |
 | `pnpm docker:up`                             | Starts Docker, clearing the stale sockets that block it |
 
 Run `pnpm db:types` after every migration and commit the result, so CI type-checks against the
