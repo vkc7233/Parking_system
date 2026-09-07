@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   Badge,
   buttonVariants,
@@ -14,6 +13,7 @@ import { PLATFORM } from '@parking/config';
 import type { ListingStatus, SpotType } from '@parking/types';
 import { getOnboardingState, requireHost } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { ListingThumbnail } from './listing-thumbnail';
 
 export const metadata = { title: 'My listings' };
 
@@ -90,13 +90,11 @@ export default async function HostListingsPage() {
                   <div className="flex flex-col gap-4 p-4 sm:flex-row">
                     <div className="relative h-32 w-full shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:h-24 sm:w-32">
                       {cover ? (
-                        <Image
+                        <ListingThumbnail
                           src={publicUrl(cover.storage_path)}
                           alt=""
-                          fill
                           sizes="128px"
                           className="object-cover"
-                          unoptimized
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-xs text-slate-400">

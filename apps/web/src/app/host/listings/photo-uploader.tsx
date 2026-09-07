@@ -1,10 +1,10 @@
 'use client';
 
-import Image from 'next/image';
 import { useRef, useState, useTransition } from 'react';
 import { PLATFORM } from '@parking/config';
 import { Badge, Button, FormError } from '@parking/ui';
 import { createClient } from '@/lib/supabase/client';
+import { ListingThumbnail } from '../listing-thumbnail';
 import { recordListingPhoto, removeListingPhoto } from './actions';
 
 /**
@@ -115,13 +115,11 @@ export function PhotoUploader({
               className="group relative overflow-hidden rounded-lg border border-slate-200"
             >
               <div className="relative aspect-4/3 bg-slate-100">
-                <Image
+                <ListingThumbnail
                   src={photo.url}
                   alt={photo.altText ?? `${listingTitle} photo ${index + 1}`}
-                  fill
                   sizes="(max-width: 640px) 50vw, 200px"
                   className="object-cover"
-                  unoptimized
                 />
               </div>
 
