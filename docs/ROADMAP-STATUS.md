@@ -2,16 +2,16 @@
 
 Tracks the sprint plan in specification §14. Update the status column as work lands.
 
-| Sprint     | Focus                                                            | Status                   |
-| ---------- | ---------------------------------------------------------------- | ------------------------ |
-| 0 (Week 1) | Foundation                                                       | **Complete** — see below |
-| 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | **Complete** — see below |
-| 2 (Week 3) | Host Listing Agreement e-signature, Admin approval queue         | Not started              |
-| 3 (Week 4) | Map + list search, filters, listing detail                       | Not started              |
-| 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | Not started              |
-| 5 (Week 6) | Notifications, My Bookings, cancellation + refund, rate & review | Not started              |
-| 6 (Week 7) | Admin dashboard, user management, disputes, payout triggering    | Not started              |
-| 7 (Week 8) | QA bug bash, legal pages, analytics verification, launch         | Not started              |
+| Sprint     | Focus                                                            | Status                      |
+| ---------- | ---------------------------------------------------------------- | --------------------------- |
+| 0 (Week 1) | Foundation                                                       | **Complete** — see below    |
+| 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | **Complete** — see below    |
+| 2 (Week 3) | Host Listing Agreement e-signature, Admin approval queue         | **Complete** — see below    |
+| 3 (Week 4) | Map + list search, filters, listing detail                       | **Partly done** — see below |
+| 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | Not started                 |
+| 5 (Week 6) | Notifications, My Bookings, cancellation + refund, rate & review | Not started                 |
+| 6 (Week 7) | Admin dashboard, user management, disputes, payout triggering    | Not started                 |
+| 7 (Week 8) | QA bug bash, legal pages, analytics verification, launch         | Not started                 |
 
 ## Sprint 0 — delivered
 
@@ -141,6 +141,47 @@ re-populate an edit form).
   Next's `<meta name="description">` in the head, not the form field. Anything scripting these
   forms must scope its queries to the form.
 
+## Sprint 2 — delivered
+
+The whole chain was walked in a browser: a host signs, an admin approves, and the listing
+appears in seeker search.
+
+- **Host Listing Agreement e-signature** (§6.2 step 4, §7.2). The agreement text lives in
+  `apps/web/src/lib/agreement.ts` as data, not JSX, so the exact string signed can be hashed and
+  reproduced. Signing records the typed name, server timestamp, IP, user agent, agreement
+  version and the SHA-256 of the text served — the hash being the part that proves _which
+  wording_ was agreed to after the wording changes. The signing button is gated on scrolling to
+  the end of the text.
+- **Admin panel** (§8.3) — a separate, darker shell at `/admin`, linked from nowhere. A
+  non-admin gets 404, not 403.
+- **Approval queue** (§6.3 step 1, §7.3) — every check §6.3 asks for on one card: the photos,
+  the address with its coordinates, the price and capacity, and whether the agreement is signed.
+  Approve is disabled without a signature, because the database would refuse anyway.
+- **Rejection with a reason** (§6.3 step 2) — mandatory and shown to the host on their listing.
+  A rejected host "can resubmit", which is impossible if nobody says what was wrong.
+- **Document review** (§4.2, §7.2) — KYC documents opened through a two-minute signed URL rather
+  than rendered on page load, and `users.kyc_status` rolled up from the three documents.
+- **User management** (§7.3) — search by name or phone, suspend and restore. Suspending delists
+  every live listing, via the database trigger.
+- **Audit trail** — every approval, rejection, suspension and document ruling writes to
+  `admin_audit_log` through the service role, so an admin cannot author their own trail.
+
+## Sprint 3 — partly delivered
+
+- **Seeker search** (§7.1, §8.1) — distance-ordered results with radius, spot type and price
+  filters. Filters live in the URL, so a result set is shareable, survives a refresh, and is
+  crawlable (§7.4). Applying one re-renders on the server inside a transition, so results never
+  blank out.
+- **Listing detail** (§7.1, §8.1) — photos, description, address, house rules, host identity and
+  a transparent price breakdown showing the service fee before checkout exists (§6.1). Readable
+  signed out; a paused or pending listing 404s rather than showing something unbookable.
+- **My Bookings** (§8.1) — real page with upcoming/past split, replacing the 404 that the header
+  had been linking to.
+
+**Not done in Sprint 3:** the visual map, and booking itself. The map needs the Google Maps
+JavaScript API and a billing account (§13); the list is the half of §8.1 that drives the
+decision, so it ships first. Slot selection, Razorpay checkout and the access pass are Sprint 4.
+
 ## Deliberate additions beyond the specification
 
 Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on request.
@@ -161,10 +202,10 @@ Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on
 
 ## Known issues
 
-- A signed-in session dropped once during Sprint 1 testing, redirecting to the login page
-  mid-flow. Re-signing in restored it and the `?next=` redirect returned to exactly the right
-  page, so the recovery path works. Cause not yet identified; worth watching during Sprint 2
-  rather than guessing at it now.
+- The "session dropped" symptom seen during Sprint 1 was a **stale Next.js dev bundle**, not an
+  auth problem: `__webpack_modules__[moduleId] is not a function` in the dev server log, with the
+  anonymous home page returning 500. Clearing `apps/web/.next` fixes it. The production build
+  was compiling cleanly throughout, which is the tell.
 
 ## Open items carried into Sprint 2
 

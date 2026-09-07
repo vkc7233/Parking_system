@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import type { ListingStatus } from '@parking/types';
 import { Button, FormError, FormSuccess, listingStatusHint } from '@parking/ui';
@@ -18,12 +19,14 @@ export function ListingActionsBar({
   photoCount,
   minPhotos,
   onboardingComplete,
+  agreementSigned,
 }: {
   listingId: string;
   status: ListingStatus;
   photoCount: number;
   minPhotos: number;
   onboardingComplete: boolean;
+  agreementSigned: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | undefined>();
@@ -41,6 +44,10 @@ export function ListingActionsBar({
   }
 
   const canSubmit = status === 'draft' || status === 'rejected';
+
+  // Submission is blocked by photos and onboarding (the database enforces both). The agreement
+  // is not a submission blocker - it blocks going live - but it is listed here because there is
+  // no later moment where a Host would naturally be prompted for it.
   const blockers: string[] = [];
   if (photoCount < minPhotos) blockers.push(`add ${minPhotos - photoCount} more photo(s)`);
   if (!onboardingComplete) blockers.push('finish onboarding');
@@ -121,6 +128,25 @@ export function ListingActionsBar({
       {canSubmit && blockers.length > 0 ? (
         <p className="text-sm text-amber-800">Before submitting: {blockers.join(', ')}.</p>
       ) : null}
+
+      {/*
+        Spec §7.2: no listing can be approved without a recorded signature, and the database
+        refuses regardless of what this UI says. Surfacing it here means the Host is not left
+        waiting on an approval that can never happen.
+      */}
+      {agreementSigned ? (
+        <p className="text-sm text-slate-500">Host Listing Agreement signed.</p>
+      ) : (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This listing cannot be approved until you sign the Host Listing Agreement.{' '}
+          <Link
+            href={`/host/listings/${listingId}/agreement`}
+            className="font-medium underline underline-offset-4"
+          >
+            Read and sign it
+          </Link>
+        </p>
+      )}
     </div>
   );
 }

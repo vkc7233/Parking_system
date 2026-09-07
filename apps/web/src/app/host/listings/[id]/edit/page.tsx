@@ -30,6 +30,7 @@ interface ListingRecord {
   rules: string | null;
   lat: number;
   lng: number;
+  agreement_signed_at: string | null;
   status: ListingStatus;
   rejection_reason: string | null;
   listing_photos: { id: string; storage_path: string; alt_text: string | null; position: number }[];
@@ -47,10 +48,10 @@ export default async function EditListingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; signed?: string }>;
 }) {
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, signed } = await searchParams;
 
   const profile = await requireHost(`/host/listings/${id}/edit`);
   const onboarding = await getOnboardingState(profile.id);
@@ -59,7 +60,7 @@ export default async function EditListingPage({
   const { data } = await supabase
     .from('listings')
     .select(
-      'id, host_id, title, description, address_line, locality, city, state, pincode, spot_type, capacity, price_per_hour, price_per_day, available_from, available_until, rules, lat, lng, status, rejection_reason, listing_photos(id, storage_path, alt_text, position)',
+      'id, host_id, title, description, address_line, locality, city, state, pincode, spot_type, capacity, price_per_hour, price_per_day, available_from, available_until, rules, lat, lng, agreement_signed_at, status, rejection_reason, listing_photos(id, storage_path, alt_text, position)',
     )
     .eq('id', id)
     .single();
@@ -101,6 +102,8 @@ export default async function EditListingPage({
         </FormSuccess>
       ) : null}
 
+      {signed ? <FormSuccess>Host Listing Agreement signed for this listing.</FormSuccess> : null}
+
       {listing.status === 'rejected' && listing.rejection_reason ? (
         <Card>
           <CardBody>
@@ -134,6 +137,7 @@ export default async function EditListingPage({
             photoCount={photos.length}
             minPhotos={PLATFORM.minListingPhotos}
             onboardingComplete={onboarding.complete}
+            agreementSigned={listing.agreement_signed_at !== null}
           />
         </CardBody>
       </Card>

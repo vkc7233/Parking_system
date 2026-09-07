@@ -25,12 +25,20 @@ pnpm bootstrap
 ```
 
 ```bash
-pnpm db:start && pnpm db:reset
+pnpm db:start
+```
+
+```bash
+pnpm db:reset
 ```
 
 ```bash
 pnpm dev
 ```
+
+> **Windows PowerShell:** run those as separate lines, as written above. PowerShell 5.1 (the
+> default on Windows) does not support `&&` between commands — it fails with "The token '&&' is
+> not a valid statement separator in this version". Use `;` if you want them on one line.
 
 The app is at **http://localhost:3000**, Supabase Studio at **http://localhost:54323**, and
 the inbox for local email at **http://localhost:54324**.
@@ -59,8 +67,10 @@ clears them and waits for the engine.
 Stop the server, `rm -rf apps/web/.next`, and start it again. If `pnpm build` succeeds, the code
 is fine and it is only the dev cache.
 
-**Port 3000 is in use:** `pnpm dev` will fail rather than silently move. Free the port — the
-local Supabase auth config expects the app on 3000.
+**Port 3000 is in use:** `pnpm dev` stops with an explanation rather than starting on 3001.
+The app has to be on 3000 — the local Supabase Auth config pins its redirect URLs there, so
+sign-in breaks anywhere else. Find and stop the process it names, then start again. A dev
+server left running from an earlier session is the usual cause.
 
 **Docker is required** for the local database. On Windows, Docker Desktop needs the WSL2
 backend (`wsl --install`, then reboot).
@@ -85,6 +95,12 @@ sign-in works offline. Enter the 10-digit number; the code is `1000` plus its la
 | Kiran Patel  | `9000000003` | `100003` | host   |
 | Rohan Desai  | `9000000004` | `100004` | seeker |
 | Anjali Mehta | `9000000005` | `100005` | seeker |
+
+**Where to go once you are in.** The home page is seeker search and works signed out. Sign in as
+**Meena** and open **List your space** for the host experience — onboarding, listings, photos and
+the Host Listing Agreement. Sign in as **Priya** and type **`/admin`** for the approval queue,
+document review and user management; nothing links to `/admin`, by design (§8.4), and a
+non-admin gets a 404 there rather than a 403.
 
 In production none of this applies: Supabase Auth routes OTP delivery through a custom SMS
 hook to MSG91 (spec §9.5).
@@ -169,7 +185,13 @@ capture, and a payout ending in `07` paise fails.
 Sprint 0 (Foundation) is complete and verified against a real database: monorepo, schema with
 PostGIS and RLS, domain logic with tests, vendor adapters, phone-OTP auth, and CI.
 
-Sprint 1 (Host onboarding, listings, photo upload) is complete and verified in a browser.
+Sprint 1 (host onboarding, listings, photo upload) and Sprint 2 (Host Listing Agreement
+e-signature, admin approval queue, document review, user management) are complete and verified
+in a browser. Sprint 3 has seeker search, listing detail and My Bookings; the map and booking
+itself are next.
+
+The whole chain works end to end today: a host lists a space and signs the agreement, an admin
+approves it, and it appears in seeker search with a transparent price breakdown.
 
 63 unit tests, 58 schema behaviour checks, lint and typecheck clean, production build green.
 The phone-OTP sign-in flow is verified end to end in a browser against the live database.

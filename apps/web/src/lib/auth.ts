@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import type { KycStatus, UserRole } from '@parking/types';
 import { createClient } from '@/lib/supabase/server';
 
@@ -74,6 +74,23 @@ export async function requireHost(returnTo: string): Promise<Profile> {
 
   if (profile.suspendedAt) {
     redirect('/host/suspended');
+  }
+
+  return profile;
+}
+
+/**
+ * Admin-only guard (spec §7.3, §8.4).
+ *
+ * A non-admin gets a 404 rather than a 403: middleware already rewrites /admin for them, and an
+ * admin panel that announces its own existence to every signed-in seeker is an invitation. RLS
+ * on every admin-touched table is the actual boundary.
+ */
+export async function requireAdmin(): Promise<Profile> {
+  const profile = await getProfile();
+
+  if (!profile || profile.role !== 'admin') {
+    notFound();
   }
 
   return profile;
