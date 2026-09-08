@@ -6,6 +6,7 @@ import type { SearchResult } from '@parking/types';
 import { createClient } from '@/lib/supabase/server';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
+import { ServiceUnavailable } from '@/components/service-unavailable';
 import { ListingThumbnail } from './host/listing-thumbnail';
 import { SearchControls } from './search-controls';
 
@@ -37,19 +38,28 @@ export default async function HomePage({
   const maxPricePerHour = params.maxPrice ? Number(params.maxPrice) * 100 : undefined;
   const spotTypes = params.spotType ? [params.spotType as SearchResult['spotType']] : undefined;
 
-  const results = await searchNearbyListings(
-    supabase,
-    {
-      center: PILOT_CITY.center,
-      radiusMeters: radius,
-      ...(maxPricePerHour ? { maxPricePerHour } : {}),
-      ...(spotTypes ? { spotTypes } : {}),
-      limit: 50,
-    },
-    {
-      photoUrl: (path) => supabase.storage.from('listing-photos').getPublicUrl(path).data.publicUrl,
-    },
-  );
+  // A search page whose backend is unreachable should say so, not throw a stack trace at the
+  // seeker. The distinction matters: no results is a real answer, an outage is not.
+  let results: SearchResult[] | null = null;
+
+  try {
+    results = await searchNearbyListings(
+      supabase,
+      {
+        center: PILOT_CITY.center,
+        radiusMeters: radius,
+        ...(maxPricePerHour ? { maxPricePerHour } : {}),
+        ...(spotTypes ? { spotTypes } : {}),
+        limit: 50,
+      },
+      {
+        photoUrl: (path) =>
+          supabase.storage.from('listing-photos').getPublicUrl(path).data.publicUrl,
+      },
+    );
+  } catch (error) {
+    console.error('[home] nearby search failed', error);
+  }
 
   return (
     <div className="min-h-dvh bg-slate-50">
@@ -71,14 +81,18 @@ export default async function HomePage({
       </section>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
-        <SearchControls
-          radius={radius}
-          maxPrice={params.maxPrice ?? ''}
-          spotType={params.spotType ?? ''}
-          resultCount={results.length}
-        />
+        {results === null ? null : (
+          <SearchControls
+            radius={radius}
+            maxPrice={params.maxPrice ?? ''}
+            spotType={params.spotType ?? ''}
+            resultCount={results.length}
+          />
+        )}
 
-        {results.length === 0 ? (
+        {results === null ? (
+          <ServiceUnavailable what="Search" />
+        ) : results.length === 0 ? (
           <Card>
             <EmptyState
               title="No spaces match yet"
