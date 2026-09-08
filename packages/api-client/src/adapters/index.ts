@@ -52,9 +52,21 @@ export interface Adapters {
   maps: MapsAdapter;
 }
 
+/**
+ * The fakes hold their state in memory, so they have to be singletons.
+ *
+ * An order created by one instance is invisible to another, which would make a two-step flow -
+ * create the order here, verify the capture over there - fail in a way that looks like a payment
+ * bug rather than a wiring one. The real adapters are stateless and are rebuilt freely.
+ */
+let fakePayments: FakePaymentsAdapter | undefined;
+let fakeNotifications: FakeNotificationsAdapter | undefined;
+let fakeMaps: FakeMapsAdapter | undefined;
+
 export function createPaymentsAdapter(env: AdapterEnv): PaymentsAdapter {
   if ((env.PAYMENTS_PROVIDER ?? 'fake') !== 'razorpay') {
-    return new FakePaymentsAdapter();
+    fakePayments ??= new FakePaymentsAdapter();
+    return fakePayments;
   }
 
   return new RazorpayPaymentsAdapter({
@@ -68,7 +80,8 @@ export function createPaymentsAdapter(env: AdapterEnv): PaymentsAdapter {
 
 export function createNotificationsAdapter(env: AdapterEnv): NotificationsAdapter {
   if ((env.NOTIFICATIONS_PROVIDER ?? 'fake') !== 'msg91') {
-    return new FakeNotificationsAdapter();
+    fakeNotifications ??= new FakeNotificationsAdapter();
+    return fakeNotifications;
   }
 
   return new Msg91NotificationsAdapter({
@@ -85,7 +98,8 @@ export function createNotificationsAdapter(env: AdapterEnv): NotificationsAdapte
 
 export function createMapsAdapter(env: AdapterEnv): MapsAdapter {
   if ((env.MAPS_PROVIDER ?? 'fake') !== 'google') {
-    return new FakeMapsAdapter();
+    fakeMaps ??= new FakeMapsAdapter();
+    return fakeMaps;
   }
 
   return new GoogleMapsAdapter({ apiKey: env.GOOGLE_MAPS_API_KEY ?? '' });

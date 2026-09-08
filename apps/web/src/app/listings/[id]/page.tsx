@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { BOOKING, FEE, PILOT_CITY } from '@parking/config';
+import { BOOKING, PILOT_CITY } from '@parking/config';
 import { Badge, Card, CardBody, Money } from '@parking/ui';
 import type { SpotType } from '@parking/types';
 import { createClient } from '@/lib/supabase/server';
+import { getProfile } from '@/lib/auth';
 import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
+import { BookingForm } from './booking-form';
 import { ListingThumbnail } from '../../host/listing-thumbnail';
 
 interface PublicListing {
@@ -99,11 +102,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const photoUrl = (path: string) =>
     supabase.storage.from('listing-photos').getPublicUrl(path).data.publicUrl;
 
-  // An indicative total for the shortest bookable stay, so the platform fee is visible before
-  // checkout exists (spec §6.1 wants the fee shown transparently).
-  const minimumHours = BOOKING.minDurationMinutes / 60;
-  const subtotal = listing.price_per_hour * minimumHours;
-  const serviceFee = Math.round((subtotal * FEE.serviceFeeBps) / 10_000);
+  const profile = await getProfile();
 
   const hours =
     listing.available_from && listing.available_until
@@ -226,40 +225,11 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
                   ) : null}
                 </div>
 
-                <dl className="space-y-1.5 border-t border-slate-100 pt-3 text-sm">
-                  <div className="flex justify-between">
-                    <dt className="text-slate-600">
-                      {minimumHours} hour{minimumHours === 1 ? '' : 's'} (minimum)
-                    </dt>
-                    <dd className="text-slate-900">
-                      <Money paise={subtotal} showDecimals={false} />
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-slate-600">Service fee</dt>
-                    <dd className="text-slate-900">
-                      <Money paise={serviceFee} showDecimals={false} />
-                    </dd>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-100 pt-1.5 font-medium">
-                    <dt className="text-slate-900">Total</dt>
-                    <dd className="text-slate-900">
-                      <Money paise={subtotal + serviceFee} showDecimals={false} />
-                    </dd>
-                  </div>
-                </dl>
-
-                <button
-                  type="button"
-                  disabled
-                  className="w-full cursor-not-allowed rounded-md bg-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
-                >
-                  Booking opens soon
-                </button>
-                <p className="text-xs text-slate-500">
-                  Slot selection and payment arrive with the next build. Prices shown are what you
-                  will pay — the fee is never added later.
-                </p>
+                <BookingForm
+                  listingId={listing.id}
+                  isSignedIn={profile !== null}
+                  isOwnListing={profile?.id === listing.host_id}
+                />
               </CardBody>
             </Card>
           </aside>
@@ -267,9 +237,19 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
         <p className="mt-8 text-xs text-slate-500">
           Listed in {PILOT_CITY.name}. Bookings can be made up to {BOOKING.maxAdvanceDays} days
-          ahead, in {BOOKING.slotMinutes}-minute steps.
+          ahead, in {BOOKING.slotMinutes}-minute steps. By booking you accept our{' '}
+          <Link href="/legal/terms" className="underline underline-offset-2">
+            Terms
+          </Link>{' '}
+          and{' '}
+          <Link href="/legal/cancellation" className="underline underline-offset-2">
+            Cancellation Policy
+          </Link>
+          .
         </p>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

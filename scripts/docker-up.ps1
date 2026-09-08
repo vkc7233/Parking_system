@@ -48,27 +48,63 @@ Get-ChildItem "$env:LOCALAPPDATA\Docker" -Directory -Filter '*.stale-*' -ErrorAc
   Sort-Object Name -Descending | Select-Object -Skip 3 |
   ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 
-# --- 2. Start the privileged helper service --------------------------------------------------
-$service = Get-Service com.docker.service -ErrorAction SilentlyContinue
+# --- 2. Reset a wedged WSL VM ----------------------------------------------------------------
+# A second failure mode: the docker-desktop distro is Running but its init control API never
+# answers, and the backend log fills with "still waiting for init control API to respond".
+# Nothing short of terminating the VM clears it. Only done when the distro is already up and
+# the engine is not, so a healthy Docker is never disturbed.
+$dockerDistroUp = (wsl -l -q --running 2>$null) -join "`n" -match 'docker-desktop'
 
-if ($service -and $service.Status -ne 'Running') {
-  Write-Step 'Starting com.docker.service (needs elevation - approve the prompt)'
-  try {
-    Start-Service com.docker.service -ErrorAction Stop
-  } catch {
-    Start-Process powershell -Verb RunAs -ArgumentList `
-      '-NoProfile', '-Command', 'Start-Service com.docker.service' -Wait
+if ($dockerDistroUp) {
+  cmd /c "docker info > NUL 2>&1"
+  if ($LASTEXITCODE -ne 0) {
+    Write-Step 'docker-desktop VM is up but not answering - restarting WSL'
+    Get-Process -Name '*docker*' -ErrorAction SilentlyContinue |
+      Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 3
+    wsl --shutdown
+    Start-Sleep -Seconds 5
   }
 }
 
-# --- 3. Launch Docker Desktop ----------------------------------------------------------------
+# --- 3. Start the privileged helper service --------------------------------------------------
+# This is the one step that needs elevation, and Docker cannot start the VM without it. Setting
+# the startup type to Automatic at the same time means the prompt appears once, not every time.
+$service = Get-Service com.docker.service -ErrorAction SilentlyContinue
+
+if ($service -and $service.Status -ne 'Running') {
+  Write-Step 'Starting com.docker.service (approve the elevation prompt)'
+  try {
+    Start-Service com.docker.service -ErrorAction Stop
+  } catch {
+    try {
+      Start-Process powershell -Verb RunAs -ArgumentList `
+        '-NoProfile', '-Command',
+        'Set-Service com.docker.service -StartupType Automatic; Start-Service com.docker.service' `
+        -Wait -ErrorAction Stop
+    } catch {
+      Write-Warning @'
+The elevation prompt was declined, so com.docker.service could not be started.
+
+Docker cannot start its Linux VM without that service, so nothing below will work. Run this
+once from an ADMINISTRATOR PowerShell to fix it permanently:
+
+  Set-Service com.docker.service -StartupType Automatic
+  Start-Service com.docker.service
+'@
+      exit 1
+    }
+  }
+}
+
+# --- 4. Launch Docker Desktop ----------------------------------------------------------------
 if (-not (Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue)) {
   Write-Step 'Launching Docker Desktop'
   Remove-Item "$env:LOCALAPPDATA\Docker\backend.error.json" -Force -ErrorAction SilentlyContinue
   Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
 }
 
-# --- 4. Wait for the engine ------------------------------------------------------------------
+# --- 5. Wait for the engine ------------------------------------------------------------------
 Write-Step 'Waiting for the Docker engine'
 $deadline = (Get-Date).AddMinutes(5)
 

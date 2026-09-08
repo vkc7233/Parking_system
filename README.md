@@ -14,6 +14,9 @@ Everything the spec left open is decided and justified in
 You need **Node 20+**, **pnpm 10+**, and **Docker Desktop running**. Nothing else — no Supabase
 account, no API keys, no SMS provider.
 
+On Windows, Docker Desktop needs the WSL2 backend: `wsl --install`, then reboot, if you have not
+set that up before.
+
 Four commands, in order:
 
 ```bash
@@ -58,10 +61,17 @@ stop it with `pnpm db:stop`.
 
 ### If something goes wrong
 
-**Docker Desktop will not start** (it opens and immediately reports "an unexpected error
-occurred"): run `pnpm docker:up`. Docker leaves unix-socket files behind after an unclean
-shutdown that Windows then refuses to delete, and it crashes on them at startup. The script
-clears them and waits for the engine.
+**Docker Desktop will not start:** run `pnpm docker:up`. It handles the three failure modes
+seen so far — stale unix sockets Windows refuses to delete, a `docker-desktop` WSL VM that is
+running but never answers its init API, and the privileged service not being started.
+
+That last one needs **one elevation prompt**. If you decline it, nothing else will work: Docker
+cannot start its Linux VM without that service. Run this once from an **administrator**
+PowerShell and it never asks again:
+
+```powershell
+Set-Service com.docker.service -StartupType Automatic; Start-Service com.docker.service
+```
 
 **The app returns 500 on every page** after a lot of editing: the dev bundle has gone stale.
 Stop the server, `rm -rf apps/web/.next`, and start it again. If `pnpm build` succeeds, the code
@@ -71,16 +81,6 @@ is fine and it is only the dev cache.
 The app has to be on 3000 — the local Supabase Auth config pins its redirect URLs there, so
 sign-in breaks anywhere else. Find and stop the process it names, then start again. A dev
 server left running from an earlier session is the usual cause.
-
-**Docker is required** for the local database. On Windows, Docker Desktop needs the WSL2
-backend (`wsl --install`, then reboot).
-
-If Docker Desktop starts and immediately reports "an unexpected error occurred", run
-`pnpm docker:up`, which clears the usual cause automatically. To diagnose it by hand, check
-`%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`. Orphaned unix-socket files
-under `%LOCALAPPDATA%\Docker\run` and `%LOCALAPPDATA%\docker-secrets-engine` survive an
-unclean shutdown and cannot be deleted normally; renaming the containing directory clears
-them, and Docker recreates them on the next start.
 
 ### Signing in locally
 

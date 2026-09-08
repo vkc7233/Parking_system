@@ -126,55 +126,57 @@ function BookingSection({
 
             return (
               <li key={booking.id}>
-                <Card>
-                  <CardBody>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-slate-900">
-                            {booking.listings?.title ?? 'Listing removed'}
-                          </span>
-                          <Badge tone={STATUS_TONE[booking.status]}>
-                            {STATUS_LABEL[booking.status]}
-                          </Badge>
+                <Link href={'/bookings/' + booking.id} className="group block">
+                  <Card className="transition group-hover:border-slate-300 group-hover:shadow-sm">
+                    <CardBody>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-slate-900">
+                              {booking.listings?.title ?? 'Listing removed'}
+                            </span>
+                            <Badge tone={STATUS_TONE[booking.status]}>
+                              {STATUS_LABEL[booking.status]}
+                            </Badge>
+                          </div>
+
+                          <p className="mt-0.5 text-sm text-slate-600">
+                            {booking.listings?.locality ? booking.listings.locality + ', ' : ''}
+                            {booking.listings?.city}
+                          </p>
+
+                          <p className="mt-1.5 text-sm text-slate-700">
+                            {start.toLocaleString('en-IN', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {' → '}
+                            {end.toLocaleTimeString('en-IN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+
+                          <p className="mt-1 font-mono text-xs text-slate-500">
+                            Ref {booking.reference}
+                          </p>
                         </div>
 
-                        <p className="mt-0.5 text-sm text-slate-600">
-                          {booking.listings?.locality ? booking.listings.locality + ', ' : ''}
-                          {booking.listings?.city}
-                        </p>
-
-                        <p className="mt-1.5 text-sm text-slate-700">
-                          {start.toLocaleString('en-IN', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {' → '}
-                          {end.toLocaleTimeString('en-IN', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </p>
-
-                        <p className="mt-1 font-mono text-xs text-slate-500">
-                          Ref {booking.reference}
-                        </p>
+                        <div className="text-right">
+                          <p className="font-medium text-slate-900">
+                            <Money paise={booking.total} />
+                          </p>
+                          {canBeReviewed(booking.status, end, now) ? (
+                            <p className="mt-1 text-xs text-slate-500">Rating opens here</p>
+                          ) : null}
+                        </div>
                       </div>
-
-                      <div className="text-right">
-                        <p className="font-medium text-slate-900">
-                          <Money paise={booking.total} />
-                        </p>
-                        {canBeReviewed(booking.status, end, now) ? (
-                          <p className="mt-1 text-xs text-slate-500">Rating opens here</p>
-                        ) : null}
-                      </div>
-                    </div>
-                  </CardBody>
-                </Card>
+                    </CardBody>
+                  </Card>
+                </Link>
               </li>
             );
           })}

@@ -5,6 +5,7 @@ import { Badge, Card, EmptyState, Money } from '@parking/ui';
 import type { SearchResult } from '@parking/types';
 import { createClient } from '@/lib/supabase/server';
 import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
 import { ListingThumbnail } from './host/listing-thumbnail';
 import { SearchControls } from './search-controls';
 
@@ -151,12 +152,7 @@ export default async function HomePage({
         )}
       </main>
 
-      <footer className="mx-auto max-w-5xl px-4 pb-10 text-xs text-slate-500">
-        <p>
-          Booking and payment arrive in the next build — see docs/ROADMAP-STATUS.md for what is live
-          today.
-        </p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

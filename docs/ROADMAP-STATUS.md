@@ -182,6 +182,52 @@ appears in seeker search.
 JavaScript API and a billing account (§13); the list is the half of §8.1 that drives the
 decision, so it ships first. Slot selection, Razorpay checkout and the access pass are Sprint 4.
 
+## Sprints 4 and 5 — code complete, NOT yet verified
+
+Everything below compiles, type-checks and lints, and the domain logic under it is unit-tested.
+**None of it has been exercised against a running database**, because Docker went down partway
+through and the elevation prompt needed to restart its privileged service was declined twice.
+Treat this section as unproven until someone walks it — see "Before trusting Sprint 4/5" below.
+
+- **Slot selection and live quoting** (§6.1 step 4, §7.1) — the total is quoted by the server on
+  every change and recomputed independently when the booking is created, so a tampered form
+  cannot buy at a price the server did not calculate.
+- **Booking creation** — holds the slot for ten minutes (A10), priced from the listing, with the
+  availability trigger as the actual guarantee against double-booking.
+- **Payment** — Razorpay Checkout when the merchant account is live; against the fake adapter it
+  captures locally. Both paths end at the same verification, which asks the provider directly
+  whether the money arrived. §7.1's "confirmed only after successful payment capture" is
+  enforced by never trusting the browser's word for it.
+- **Webhook** (§11's `razorpay-webhook`) — signature-verified, idempotent, and the authoritative
+  confirmation path for when a browser is closed mid-redirect.
+- **Digital access pass** (§7.1, A5) — QR encoding an HMAC-signed token, generated on the
+  confirmation page so it exists the moment payment lands.
+- **Host verify screen** (A5) — the arrival check the specification never had. Scans or accepts a
+  typed reference, checks signature, status and time window, and records check-in.
+- **Cancellation and refunds** (§7.1, A2) — the refund amount is stated before confirming, and
+  computed by the same policy function that issues it.
+- **Rate and review** (§7.1, A16) — opens only after the booking ends, closes after 14 days, both
+  enforced by database trigger.
+- **Notifications** (§9.9) — one `notify()` entry point that fans out to every channel a template
+  needs and logs every attempt, so §7.1's "100% of successful bookings" is evidenceable.
+- **Legal pages** (§7.4) — Terms, Privacy and Cancellation & Refunds, linked from the footer and
+  from checkout. The cancellation tiers, fee, retention periods and dispute window are rendered
+  from the same configuration the code enforces, so the published policy cannot drift from
+  behaviour. Marked as drafts pending counsel, per §13.
+
+### Before trusting Sprint 4/5
+
+Get Docker running (`pnpm docker:up`, approving the elevation prompt), then:
+
+1. `pnpm db:reset && pnpm db:check` — 58 schema assertions should still pass.
+2. Sign in as a seeker, book a live listing, pay on the checkout screen, and confirm the QR pass
+   appears on the booking page.
+3. Sign in as that listing's host, open **Check a pass**, and type the reference — it should
+   report valid and check the driver in.
+4. Cancel a booking and confirm the refund shown matches what lands on the booking record.
+
+Until that is done, the honest status of the booking loop is "written, not witnessed".
+
 ## Deliberate additions beyond the specification
 
 Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on request.

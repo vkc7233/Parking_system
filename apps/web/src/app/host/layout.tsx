@@ -26,6 +26,12 @@ export default async function HostLayout({ children }: { children: React.ReactNo
               My listings
             </Link>
             <Link
+              href="/host/verify"
+              className="rounded-md px-3 py-1.5 text-slate-700 hover:bg-slate-100"
+            >
+              Check a pass
+            </Link>
+            <Link
               href="/host/onboarding"
               className="rounded-md px-3 py-1.5 text-slate-700 hover:bg-slate-100"
             >
