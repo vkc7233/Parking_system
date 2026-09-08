@@ -8,6 +8,7 @@ import { requireProfile } from '@/lib/auth';
 import { issuePassFor } from '@/lib/access-pass';
 import { createServiceClient } from '@/lib/supabase/service';
 import { SiteHeader } from '@/components/site-header';
+import { DirectionsLink } from '@/components/directions-link';
 import { CancelBooking } from './cancel-booking';
 import { ReviewForm } from './review-form';
 import { DisputeForm } from './dispute-form';
@@ -45,7 +46,7 @@ export default async function BookingDetailPage({
   const { data: booking } = await service
     .from('bookings')
     .select(
-      'id, reference, seeker_id, host_id, listing_id, status, start_time, end_time, subtotal, service_fee, tax, total, refund_amount, cancellation_reason, checked_in_at, listings(title, address_line, locality, city, rules)',
+      'id, reference, seeker_id, host_id, listing_id, status, start_time, end_time, subtotal, service_fee, tax, total, refund_amount, cancellation_reason, checked_in_at, listings(title, address_line, locality, city, rules, lat, lng)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -59,6 +60,8 @@ export default async function BookingDetailPage({
     title: string;
     address_line: string;
     locality: string | null;
+    lat: number;
+    lng: number;
     city: string;
     rules: string | null;
   } | null;
@@ -175,6 +178,14 @@ export default async function BookingDetailPage({
                   <br />
                   {listing?.locality ? listing.locality + ', ' : ''}
                   {listing?.city}
+                  {listing ? (
+                    <span className="mt-1 block">
+                      <DirectionsLink
+                        location={{ lat: listing.lat, lng: listing.lng }}
+                        label={listing.locality ?? listing.city}
+                      />
+                    </span>
+                  ) : null}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">

@@ -130,19 +130,19 @@ export default async function HomePage({
       <SiteHeader />
 
       <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-10 pb-6">
+        <div className="mx-auto max-w-6xl px-4 pt-6 pb-5 sm:pt-10 sm:pb-6">
           <p className="text-sm font-medium text-brand-600">
             {PILOT_CITY.name}, {PILOT_CITY.state}
           </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
             Parking you have already booked
           </h1>
-          <p className="mt-2 max-w-xl text-slate-600">
+          <p className="mt-2 hidden max-w-xl text-slate-600 sm:block">
             Reserve a real space near where you are going in {PILOT_CITY.name}, at a price you know
             before you leave. No circling Koregaon Park, no bargaining at the gate.
           </p>
 
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-6">
             <SearchBar
               initialWhere={slug ? label : (params.where ?? '')}
               initialStart={params.start ?? ''}

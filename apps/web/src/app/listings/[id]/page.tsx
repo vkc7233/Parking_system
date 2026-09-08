@@ -10,6 +10,7 @@ import { SiteFooter } from '@/components/site-footer';
 import { BookingForm } from './booking-form';
 import { ListingPhoto } from '@/components/listing-photo';
 import { SpotArt } from '@/components/spot-art';
+import { DirectionsLink } from '@/components/directions-link';
 
 interface PublicListing {
   id: string;
@@ -185,8 +186,11 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
                     {listing.locality ? listing.locality + ', ' : ''}
                     {listing.city} {listing.pincode ?? ''}
                   </p>
-                  <p className="mt-1 font-mono text-xs text-slate-500">
-                    {listing.lat.toFixed(5)}, {listing.lng.toFixed(5)}
+                  <p className="mt-2">
+                    <DirectionsLink
+                      location={{ lat: listing.lat, lng: listing.lng }}
+                      label={listing.locality ?? listing.city}
+                    />
                   </p>
                 </div>
 
