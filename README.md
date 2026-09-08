@@ -201,17 +201,19 @@ capture, and a payout ending in `07` paise fails.
 Sprint 0 (Foundation) is complete and verified against a real database: monorepo, schema with
 PostGIS and RLS, domain logic with tests, vendor adapters, phone-OTP auth, and CI.
 
-Sprints 1 through 6 are complete and verified in a browser against the live stack — host
+Sprints 1 through 7 are complete and verified in a browser against the live stack — host
 onboarding and listings, the Listing Agreement and admin approval, destination-and-time search
 with a map, booking, payment, the QR access pass, cancellation and refunds, notifications,
-reviews, and settlement: host earnings, the admin payout run and the dispute queue.
+reviews, settlement (host earnings, the admin payout run, the dispute queue), profile and
+settings, the host bookings calendar, admin CSV reporting, funnel analytics and SEO.
 
 The whole chain works end to end today: a host lists a space in Pune and signs the agreement, an
 admin approves it, a seeker searches Koregaon Park for a Saturday evening, books and pays, shows
 a QR pass on arrival — and afterwards the host is paid, or the seeker disputes and is refunded.
-Sprint 7 (analytics instrumentation and the QA bug bash) is what remains.
+What remains before launch is the QA bug bash across a real device matrix, and pointing error
+tracking at a live Sentry project.
 
-63 unit tests, 58 schema behaviour checks, lint and typecheck clean, production build green.
+92 unit tests, 59 schema behaviour checks, lint and typecheck clean, production build green.
 The phone-OTP sign-in flow is verified end to end in a browser against the live database.
 Sprints 2–7 are outlined in spec §14 and tracked in
 [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).

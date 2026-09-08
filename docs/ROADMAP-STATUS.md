@@ -362,3 +362,73 @@ measured on the device seekers use.
   information. Both the listing and the access pass now link into the seeker's own maps app, by
   coordinates rather than address: these are unmarked bays inside gated societies, which address
   search routes to the wrong side of the block often enough to matter.
+
+## Sprint 7 and the design pass
+
+### Product analytics (§7.4, §3)
+
+§7.4 asks that "every funnel step in Section 3's metrics has a corresponding tracked event".
+Each of §3's six metrics now maps to named events, and `packages/api-client` holds a test that
+transcribes the metrics table — delete an event because nothing appears to use it and the test
+fails naming the metric that goes dark.
+
+Three decisions worth recording:
+
+- **The event names are a closed union, not strings.** A funnel is only as good as the spelling;
+  one `bookingStarted` among a million `booking_started` makes the completion rate quietly wrong
+  with nothing failing anywhere.
+- **`track()` can never throw or block.** A lost event costs a slightly wrong denominator; a
+  thrown one costs a booking. The guard is in the wrapper so no call site can forget it.
+- **`payment_completed` fires server-side, after the provider confirms.** A browser-side event
+  would count bookings that a closed tab or a failed capture never completed, and §3's headline
+  metric would read high.
+
+The default adapter is the in-memory fake, so CI never posts fabricated data into the real
+project. PostHog is reached over its HTTP capture API — no SDK, no third-party script on a
+checkout page.
+
+### Screens completed from §8
+
+- **Profile & Settings** (§8.1, §8.2 — one screen, per §8.4's one-account rule). Saved payment
+  methods are described as what they are: held by Razorpay, never seen by this platform. An
+  empty "no cards saved" panel would imply a broken feature rather than a deliberate design.
+- **Host bookings calendar** (§8.2). Four weeks of arrivals with times and references rather
+  than a month grid — a host's real question is "is anyone coming and when", which a grid of
+  numbered boxes answers only after you click one. Quiet days collapse to a single line, and
+  `?listing=` narrows to one space.
+- **Admin reports with CSV export** (§7.3, §8.3). Totals are shown on screen before the download,
+  because an export you must open in Excel to sanity-check is one nobody sanity-checks.
+
+### SEO (§7.4)
+
+`sitemap.xml`, `robots.txt` and real metadata. The eight Pune area pages carry a higher priority
+than individual listings on purpose: "parking in Koregaon Park" is the search people run, and a
+single listing ranks for nothing on its own.
+
+### Two defects the acceptance criteria caught
+
+- **The CSV did not reconcile with the dashboard**, which is precisely what §7.3 requires. The
+  screen defaulted its end date to *now* while the download link carried today's date, which the
+  route parsed as end-of-day — so a booking later that evening appeared in the export and not in
+  the totals it was supposed to match. The period, the status filter and the query now live in
+  one module both consumers import.
+- **The sitemap shipped empty.** It read cookies through the server client, which throws during
+  a static build, and the catch around it turned that into a sitemap containing no listings —
+  indistinguishable from a working one until rankings quietly fail to appear. It reads with an
+  anonymous client now, and logs loudly when it cannot.
+
+### The design pass
+
+The palette is two-note and the second note is rationed. Indigo carries everything the platform
+does on the seeker's behalf; amber means scarcity or money owed — "1 left", a payout waiting, a
+document unreviewed — and nothing else may use it, which is what makes it register.
+
+One infrastructure note that cost an hour: Tailwind v4 auto-detects sources from the app and
+skips `node_modules`, where the workspace packages are symlinked. Any utility used **only**
+inside `packages/ui` was therefore never generated — the class lands in the HTML, matches no
+rule, and the component renders unstyled with nothing failing anywhere. The `@source`
+declarations at the top of `globals.css` are what make the shared component library shareable.
+
+**Still open for launch:** the QA bug bash across a real device matrix, and error tracking wired
+to a live Sentry project (§7.4's criterion — "visible in the dashboard within 1 minute" — cannot
+be verified without one).
