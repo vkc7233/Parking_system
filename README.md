@@ -73,9 +73,14 @@ PowerShell and it never asks again:
 Set-Service com.docker.service -StartupType Automatic; Start-Service com.docker.service
 ```
 
-**The app returns 500 on every page** after a lot of editing: the dev bundle has gone stale.
-Stop the server, `rm -rf apps/web/.next`, and start it again. If `pnpm build` succeeds, the code
-is fine and it is only the dev cache.
+**Webpack errors in the browser** — "Cannot read properties of undefined (reading 'call')" or
+"\_\_webpack_modules\_\_[moduleId] is not a function" — mean the dev bundle is corrupt, not that
+your code is wrong. `pnpm build` succeeding while the browser fails is the tell.
+
+The usual cause was `next dev` and `next build` both writing to `.next`, so running a build
+while a dev server was up pulled the chunks out from under it. They now use separate
+directories (`.next-dev` and `.next`), so that specific collision cannot happen. If you see it
+anyway, stop the server, `rm -rf apps/web/.next-dev`, and start again.
 
 **Port 3000 is in use:** `pnpm dev` stops with an explanation rather than starting on 3001.
 The app has to be on 3000 — the local Supabase Auth config pins its redirect URLs there, so
