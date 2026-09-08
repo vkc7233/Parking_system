@@ -33,7 +33,7 @@ export async function simulateFakePayment(
 
   const { data: booking } = await service
     .from('bookings')
-    .select('id, seeker_id, status')
+    .select('id, seeker_id, status, total')
     .eq('id', bookingId)
     .single();
 
@@ -54,7 +54,9 @@ export async function simulateFakePayment(
   }
 
   try {
-    const captured = await adapter.simulateCheckout(orderId);
+    // The booking total is passed so the order can be rehydrated if this process has restarted
+    // since it was created - a routine event with hot reload.
+    const captured = await adapter.simulateCheckout(orderId, Number(booking.total));
     return { paymentId: captured.paymentId };
   } catch {
     return { error: 'Simulated payment failed. Try again.' };

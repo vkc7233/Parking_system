@@ -69,11 +69,27 @@ export class FakePaymentsAdapter implements PaymentsAdapter {
    * Stands in for the Seeker completing checkout. The real adapter has no equivalent - the
    * provider's hosted widget does this - so it is only ever called from tests and the local
    * dev checkout screen.
+   *
+   * `knownAmount` rehydrates an order this instance has never seen. The store is in memory, so
+   * a dev-server reload between creating the order and paying for it loses the order and the
+   * payment fails for a reason that has nothing to do with the code under test. The caller
+   * always has the amount already (it is on the booking), so passing it keeps the two-step flow
+   * working across a reload without weakening the check: the captured amount is still compared
+   * against the booking before anything is confirmed.
    */
-  async simulateCheckout(orderId: string): Promise<CapturedPayment> {
-    const entry = this.orders.get(orderId);
+  async simulateCheckout(orderId: string, knownAmount?: number): Promise<CapturedPayment> {
+    let entry = this.orders.get(orderId);
+
     if (!entry) {
-      throw new PaymentAdapterError(`Unknown order ${orderId}`, 'not_found');
+      if (knownAmount === undefined) {
+        throw new PaymentAdapterError(`Unknown order ${orderId}`, 'not_found');
+      }
+
+      entry = {
+        order: { orderId, amount: knownAmount, currency: 'INR', receipt: orderId },
+        refunded: 0,
+      };
+      this.orders.set(orderId, entry);
     }
 
     if (entry.order.amount % 100 === FAIL_CAPTURE_SUFFIX) {

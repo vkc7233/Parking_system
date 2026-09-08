@@ -28,11 +28,29 @@ function toLocalInputValue(date: Date) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
-/** Next slot boundary from now, so the default start is always bookable. */
-function defaultStart() {
-  const now = new Date();
+/** Rounds up to the next slot boundary. */
+function nextSlot(from: Date) {
   const ms = BOOKING.slotMinutes * 60_000;
-  return new Date(Math.ceil((now.getTime() + 15 * 60_000) / ms) * ms);
+  return new Date(Math.ceil(from.getTime() / ms) * ms);
+}
+
+/**
+ * The earliest selectable time, and it MUST be slot-aligned.
+ *
+ * A datetime-local input computes `step` alignment relative to `min`, not to midnight. With an
+ * unaligned min - the raw current time, say 15:08 - a step of 30 minutes makes the valid values
+ * 15:08, 15:38, 16:08... so every sensible :00 or :30 time fails constraint validation. The form
+ * then refuses to submit, silently, with no error anywhere: requestSubmit() and a real click both
+ * just do nothing. Aligning min to the same grid as the values is what makes the form submittable
+ * at all.
+ */
+function earliestStart() {
+  return nextSlot(new Date());
+}
+
+/** A little ahead of the earliest slot, so the default is realistic rather than immediate. */
+function defaultStart() {
+  return nextSlot(new Date(Date.now() + 15 * 60_000));
 }
 
 export function BookingForm({
@@ -47,6 +65,9 @@ export function BookingForm({
   const [state, action, submitting] = useActionState(createBooking, initialState);
 
   const [startLocal, setStartLocal] = useState(() => toLocalInputValue(defaultStart()));
+  // Fixed at mount: recomputing it on every render would move the constraint under the user
+  // mid-interaction, and re-invalidate a time they had already picked.
+  const [minStart] = useState(() => toLocalInputValue(earliestStart()));
   const [hours, setHours] = useState(2);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [isQuoting, startQuoting] = useTransition();
@@ -101,7 +122,7 @@ export function BookingForm({
           id="startTime"
           type="datetime-local"
           value={startLocal}
-          min={toLocalInputValue(new Date())}
+          min={minStart}
           step={BOOKING.slotMinutes * 60}
           onChange={(e) => setStartLocal(e.target.value)}
           required

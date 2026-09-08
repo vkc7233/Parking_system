@@ -182,12 +182,10 @@ appears in seeker search.
 JavaScript API and a billing account (§13); the list is the half of §8.1 that drives the
 decision, so it ships first. Slot selection, Razorpay checkout and the access pass are Sprint 4.
 
-## Sprints 4 and 5 — code complete, NOT yet verified
+## Sprints 4 and 5 — delivered and verified
 
-Everything below compiles, type-checks and lints, and the domain logic under it is unit-tested.
-**None of it has been exercised against a running database**, because Docker went down partway
-through and the elevation prompt needed to restart its privileged service was declined twice.
-Treat this section as unproven until someone walks it — see "Before trusting Sprint 4/5" below.
+Walked end to end in a browser against the live stack: search → book → pay → QR pass → host
+verifies the pass → cancel with the refund the policy says.
 
 - **Slot selection and live quoting** (§6.1 step 4, §7.1) — the total is quoted by the server on
   every change and recomputed independently when the booking is created, so a tampered form
@@ -215,18 +213,34 @@ Treat this section as unproven until someone walks it — see "Before trusting S
   from the same configuration the code enforces, so the published policy cannot drift from
   behaviour. Marked as drafts pending counsel, per §13.
 
-### Before trusting Sprint 4/5
+### What the run proved
 
-Get Docker running (`pnpm docker:up`, approving the elevation prompt), then:
+- A 2-hour booking at ₹30/hour quoted **₹60 + ₹9 fee = ₹69**, and the row stored exactly that,
+  with `host_payout` at the full ₹60 (assumption A1).
+- The checkout hold counted down from 10:00 (A10), and the booking confirmed only after the
+  payment was verified server-side.
+- The QR pass rendered with reference `57N7X3AZ`, and the host's **Check a pass** screen returned
+  "Let them in — Valid. Checked in.", recording the arrival.
+- A non-existent reference was refused, and a **forged signed token** was refused with "This pass
+  was not issued by us" — the HMAC check doing its job (A5).
+- Notifications logged SMS and WhatsApp as sent and email as **failed**, correctly, because no
+  email provider is configured — the gap is visible rather than hidden (§9.9).
+- Cancelling 12 minutes before arrival returned **nothing**, stated plainly before confirming,
+  and recorded "Cancelled 0.2h before start" — the under-1-hour tier of assumption A2.
 
-1. `pnpm db:reset && pnpm db:check` — 58 schema assertions should still pass.
-2. Sign in as a seeker, book a live listing, pay on the checkout screen, and confirm the QR pass
-   appears on the booking page.
-3. Sign in as that listing's host, open **Check a pass**, and type the reference — it should
-   report valid and check the driver in.
-4. Cancel a booking and confirm the refund shown matches what lands on the booking record.
+### Bugs the run caught
 
-Until that is done, the honest status of the booking loop is "written, not witnessed".
+1. **Nobody could have booked anything.** The `datetime-local` input had `step="1800"` and
+   `min` set to the raw current time. A browser computes step alignment relative to `min`, not to
+   midnight, so with `min="15:08"` the only valid times were 15:08, 15:38, 16:08 — and every
+   sensible :00 or :30 value failed constraint validation. The form then refused to submit
+   **silently**: no error, no message, a real click and `requestSubmit()` both did nothing.
+   Fixed by aligning `min` to the same slot grid as the values.
+2. **The fake payment adapter lost orders across a dev-server reload.** Its store is in memory, so
+   an order created before a hot reload was gone by the time checkout tried to capture it, and the
+   failure looked like a payment bug rather than a wiring one. `simulateCheckout` now rehydrates
+   from the amount the caller already holds; the captured amount is still checked against the
+   booking before anything is confirmed.
 
 ## Deliberate additions beyond the specification
 
