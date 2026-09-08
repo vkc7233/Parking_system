@@ -30,12 +30,17 @@ $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $socketDirs = @("$env:LOCALAPPDATA\Docker\run", "$env:LOCALAPPDATA\docker-secrets-engine")
 
 foreach ($dir in $socketDirs) {
-  if (-not (Test-Path $dir)) { continue }
+  if (-not (Test-Path $dir)) {
+    Write-Step "No socket directory at $dir - nothing to clear"
+    continue
+  }
 
-  # Only in the way if something is actually in there.
-  if (-not (Get-ChildItem $dir -Force -ErrorAction SilentlyContinue)) { continue }
-
-  Write-Step "Clearing stale sockets in $dir"
+  # Deliberately NOT checking whether the directory has contents first. A broken reparse point
+  # is exactly what Get-ChildItem cannot enumerate: it returns empty, the check concludes the
+  # directory is clean, and the one file that stops Docker starting is left in place. That bug
+  # cost a debugging session. Docker recreates these directories on start, so renaming an
+  # already-clean one is harmless.
+  Write-Step "Clearing socket directory $dir"
   try {
     Rename-Item $dir "$(Split-Path $dir -Leaf).stale-$stamp" -ErrorAction Stop
   } catch {
@@ -55,6 +60,10 @@ Get-ChildItem "$env:LOCALAPPDATA\Docker" -Directory -Filter '*.stale-*' -ErrorAc
 # the engine is not, so a healthy Docker is never disturbed.
 $dockerDistroUp = (wsl -l -q --running 2>$null) -join "`n" -match 'docker-desktop'
 
+if (-not $dockerDistroUp) {
+  Write-Step 'docker-desktop VM is not running - it will be started by Docker Desktop'
+}
+
 if ($dockerDistroUp) {
   cmd /c "docker info > NUL 2>&1"
   if ($LASTEXITCODE -ne 0) {
@@ -71,6 +80,10 @@ if ($dockerDistroUp) {
 # This is the one step that needs elevation, and Docker cannot start the VM without it. Setting
 # the startup type to Automatic at the same time means the prompt appears once, not every time.
 $service = Get-Service com.docker.service -ErrorAction SilentlyContinue
+
+if ($service -and $service.Status -eq 'Running') {
+  Write-Step 'com.docker.service is already running'
+}
 
 if ($service -and $service.Status -ne 'Running') {
   Write-Step 'Starting com.docker.service (approve the elevation prompt)'
@@ -108,6 +121,9 @@ if (-not (Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue)) {
 Write-Step 'Waiting for the Docker engine'
 $deadline = (Get-Date).AddMinutes(5)
 
+$errorFile = "$env:LOCALAPPDATA\Dockerackend.error.json"
+$waited = 0
+
 while ((Get-Date) -lt $deadline) {
   # cmd /c keeps the stderr noise out of PowerShell's error stream entirely.
   cmd /c "docker info > NUL 2>&1"
@@ -115,7 +131,21 @@ while ((Get-Date) -lt $deadline) {
     Write-Host 'Docker engine is running.' -ForegroundColor Green
     exit 0
   }
+
+  # Docker writes this the moment the backend gives up. Waiting out the full five minutes after
+  # that point tells nobody anything.
+  if (Test-Path $errorFile) {
+    $reported = (Get-Content $errorFile -Raw -ErrorAction SilentlyContinue)
+    Write-Host ''
+    Write-Error "Docker Desktop's backend failed to start:`n`n$reported"
+    exit 1
+  }
+
   Start-Sleep -Seconds 5
+  $waited += 5
+  if ($waited % 30 -eq 0) {
+    Write-Host "    still waiting... ${waited}s (first start after an update can take a few minutes)"
+  }
 }
 
 Write-Error @'
