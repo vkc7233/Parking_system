@@ -41,7 +41,7 @@ begin
   end if;
 
   -- ST_MakePoint takes (x, y) - longitude first. Swapping these is the single easiest mistake
-  -- to make with PostGIS, and it puts an Ahmedabad listing somewhere off the coast of Somalia.
+  -- to make with PostGIS, and it puts a Pune listing somewhere off the coast of Somalia.
   v_point := extensions.ST_SetSRID(extensions.ST_MakePoint(p_lng, p_lat), 4326)::extensions.geography;
 
   if p_id is null then

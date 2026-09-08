@@ -5,7 +5,7 @@
  *
  * These stay on the server so the maps provider remains swappable (spec §9.6 asks for exactly
  * that abstraction) and so a Google billing key is never shipped to a browser. Locally the fake
- * adapter answers from Ahmedabad fixtures, and no billed call is made.
+ * adapter answers from Pune fixtures, and no billed call is made.
  */
 import { createMapsAdapter, type PlaceSuggestion } from '@parking/api-client';
 import type { LatLng } from '@parking/types';

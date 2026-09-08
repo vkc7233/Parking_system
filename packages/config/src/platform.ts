@@ -73,13 +73,23 @@ export const BOOKING = {
   maxAdvanceDays: 90,
 } as const;
 
-/** A8 — Pilot city. Drives map centring and geocoding bias only. */
+/**
+ * A8 — Pilot city. Drives map centring, the geocoding viewport bias and search defaults.
+ *
+ * Pune. Centre is Shivajinagar, which sits between the old city and the western IT corridor, so
+ * a default radius reaches both the Camp/MG Road commercial core and Deccan/Kothrud rather than
+ * favouring one side.
+ *
+ * The 5km default is wider than a dense-core city would need: Pune's parking pressure is spread
+ * across separated pockets — Koregaon Park, Baner, Hinjewadi, Viman Nagar, Magarpatta — rather
+ * than concentrated in one centre, so a 3km radius from most destinations would return nothing.
+ */
 export const PILOT_CITY = {
-  name: 'Ahmedabad',
-  state: 'Gujarat',
+  name: 'Pune',
+  state: 'Maharashtra',
   countryCode: 'IN',
-  center: { lat: 23.0225, lng: 72.5714 },
-  defaultSearchRadiusMeters: 3_000,
+  center: { lat: 18.5308, lng: 73.8475 },
+  defaultSearchRadiusMeters: 5_000,
   maxSearchRadiusMeters: 25_000,
   defaultMapZoom: 13,
 } as const;

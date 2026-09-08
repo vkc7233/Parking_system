@@ -1,8 +1,8 @@
 -- Local development seed. Runs on `pnpm db:reset`.
 --
 -- Gives you a working pilot-city marketplace to develop against: an admin, two hosts with
--- completed onboarding, two seekers, and a handful of live listings around Ahmedabad
--- (assumption A8) with realistic pilot-city pricing.
+-- completed onboarding, two seekers, and live listings across Pune (assumption A8) at
+-- realistic local pricing.
 --
 -- NEVER runs against a hosted project - `supabase db reset` only touches the local stack.
 
@@ -34,35 +34,35 @@ insert into auth.users (
 values
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000001',
    'authenticated', 'authenticated', '919000000001', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Priya Admin"}', now(), now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Priya Deshmukh"}', now(), now(),
    '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000002',
    'authenticated', 'authenticated', '919000000002', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Meena Shah"}', now(), now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Meena Kulkarni"}', now(), now(),
    '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000003',
    'authenticated', 'authenticated', '919000000003', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Kiran Patel"}', now(), now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Kiran Joshi"}', now(), now(),
    '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000004',
    'authenticated', 'authenticated', '919000000004', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Rohan Desai"}', now(), now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Rohan Bhosale"}', now(), now(),
    '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000005',
    'authenticated', 'authenticated', '919000000005', now(),
-   '{"provider":"phone","providers":["phone"]}', '{"name":"Anjali Mehta"}', now(), now(),
+   '{"provider":"phone","providers":["phone"]}', '{"name":"Anjali Sathe"}', now(), now(),
    '', '', '', '', '', '', '', '')
 on conflict (id) do nothing;
 
-update public.users set name = 'Priya Admin', role = 'admin', kyc_status = 'verified'
+update public.users set name = 'Priya Deshmukh', role = 'admin', kyc_status = 'verified'
  where id = '00000000-0000-4000-8000-000000000001';
-update public.users set name = 'Meena Shah', role = 'host', kyc_status = 'verified'
+update public.users set name = 'Meena Kulkarni', role = 'host', kyc_status = 'verified'
  where id = '00000000-0000-4000-8000-000000000002';
-update public.users set name = 'Kiran Patel', role = 'host', kyc_status = 'verified'
+update public.users set name = 'Kiran Joshi', role = 'host', kyc_status = 'verified'
  where id = '00000000-0000-4000-8000-000000000003';
-update public.users set name = 'Rohan Desai', role = 'seeker'
+update public.users set name = 'Rohan Bhosale', role = 'seeker'
  where id = '00000000-0000-4000-8000-000000000004';
-update public.users set name = 'Anjali Mehta', role = 'seeker'
+update public.users set name = 'Anjali Sathe', role = 'seeker'
  where id = '00000000-0000-4000-8000-000000000005';
 
 -- ---------------------------------------------------------------------------
@@ -88,8 +88,13 @@ on conflict do nothing;
 -- ---------------------------------------------------------------------------
 -- Listings
 -- ---------------------------------------------------------------------------
--- Real Ahmedabad micro-markets with parking pressure: CG Road, Prahlad Nagar, Navrangpura,
--- Bodakdev, Maninagar. Prices in paise (assumption A9): 3000 = Rs 30/hour.
+-- Real Pune micro-markets with genuine parking pressure, spread deliberately across the city so
+-- a default-radius search from any of them returns something: the restaurant districts (Koregaon
+-- Park, Kalyani Nagar), the commercial core (Camp/MG Road, Deccan), the IT corridors (Hinjewadi,
+-- Magarpatta), and a transit hub (Pune Station).
+--
+-- Prices in paise (assumption A9): 4000 = Rs 40/hour. Koregaon Park and Camp are priced highest
+-- because that is where the scarcity actually is; Hinjewadi is cheaper but sells on volume.
 
 insert into public.listings (
   id, host_id, title, description, address_line, locality, city, state, pincode,
@@ -98,44 +103,52 @@ insert into public.listings (
 )
 values
   ('10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002',
-   'Covered slot off CG Road',
-   'Single covered slot in a residential compound, 3 minutes walk from CG Road shopping.',
-   '12 Swastik Society, Navrangpura', 'Navrangpura', 'Ahmedabad', 'Gujarat', '380009',
-   extensions.ST_SetSRID(extensions.ST_MakePoint(72.5613, 23.0339), 4326)::extensions.geography,
-   'covered', 1, 3000, 20000, '07:00', '22:00',
-   'No overnight stays. Please do not block the gate.', 'draft'),
+   'Covered bay off North Main Road',
+   'Single covered bay inside a gated society, three minutes walk from the Koregaon Park restaurants.',
+   '14 Lane 5, Koregaon Park', 'Koregaon Park', 'Pune', 'Maharashtra', '411001',
+   extensions.ST_SetSRID(extensions.ST_MakePoint(73.8939, 18.5362), 4326)::extensions.geography,
+   'covered', 1, 5000, 32000, '07:00', '23:30',
+   'No overnight stays. Please do not block the society gate.', 'draft'),
 
   ('10000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000002',
-   'Basement parking, Prahlad Nagar',
-   'Secure basement bay in a gated apartment complex with 24h security.',
-   'Sun Complex, Prahlad Nagar Road', 'Prahlad Nagar', 'Ahmedabad', 'Gujarat', '380015',
-   extensions.ST_SetSRID(extensions.ST_MakePoint(72.5074, 23.0106), 4326)::extensions.geography,
-   'basement', 2, 4000, 25000, null, null,
-   'Reverse into the bay. Sedans and hatchbacks only.', 'draft'),
+   'Basement parking near MG Road',
+   'Secure basement bay in a commercial building with 24-hour security, two minutes from MG Road.',
+   'Clover Centre, Moledina Road, Camp', 'Camp', 'Pune', 'Maharashtra', '411001',
+   extensions.ST_SetSRID(extensions.ST_MakePoint(73.8790, 18.5158), 4326)::extensions.geography,
+   'basement', 2, 6000, 40000, null, null,
+   'Reverse into the bay. Hatchbacks and sedans only - low clearance.', 'draft'),
 
   ('10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000003',
-   'Driveway spot near Law Garden',
-   'Open driveway space, easy access, walking distance to Law Garden market.',
-   '8 Ellisbridge Society', 'Ellisbridge', 'Ahmedabad', 'Gujarat', '380006',
-   extensions.ST_SetSRID(extensions.ST_MakePoint(72.5652, 23.0225), 4326)::extensions.geography,
-   'driveway', 1, 2500, 15000, '06:00', '23:00',
-   'Please park close to the left wall.', 'draft'),
+   'Driveway spot near FC Road',
+   'Open driveway space in a quiet lane, walking distance to Fergusson College Road and Deccan.',
+   '8 Bhandarkar Institute Road, Deccan', 'Deccan', 'Pune', 'Maharashtra', '411004',
+   extensions.ST_SetSRID(extensions.ST_MakePoint(73.8415, 18.5158), 4326)::extensions.geography,
+   'driveway', 1, 3500, 22000, '06:00', '23:00',
+   'Please park close to the left wall so the gate can open.', 'draft'),
 
   ('10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000003',
-   'Stilt parking, Bodakdev',
-   'Stilt parking under a residential tower, close to the SG Highway offices.',
-   'Silver Oak Towers, Bodakdev', 'Bodakdev', 'Ahmedabad', 'Gujarat', '380054',
-   extensions.ST_SetSRID(extensions.ST_MakePoint(72.5075, 23.0395), 4326)::extensions.geography,
-   'stilt', 3, 3500, 22000, null, null,
+   'Stilt parking, Hinjewadi Phase 1',
+   'Stilt parking under a residential tower, five minutes from the Phase 1 IT park gates.',
+   'Rose Icon, Hinjewadi Phase 1', 'Hinjewadi', 'Pune', 'Maharashtra', '411057',
+   extensions.ST_SetSRID(extensions.ST_MakePoint(73.7389, 18.5913), 4326)::extensions.geography,
+   'stilt', 3, 3000, 18000, null, null,
    'Weekday commuters preferred. No car washing on site.', 'draft'),
 
   ('10000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000002',
-   'Open compound spot, Maninagar',
-   'Open spot in a private compound, five minutes from Maninagar railway station.',
-   '44 Rambag Road, Maninagar', 'Maninagar', 'Ahmedabad', 'Gujarat', '380008',
-   extensions.ST_SetSRID(extensions.ST_MakePoint(72.6009, 22.9964), 4326)::extensions.geography,
-   'open', 1, 2000, 12000, '05:00', '23:59',
-   'Station commuters welcome. Gate closes at midnight.', 'draft')
+   'Open compound spot near Pune Station',
+   'Open spot in a private compound, six minutes walk from the railway station and the bus stand.',
+   '22 Sadhu Vaswani Path, Agarkar Nagar', 'Agarkar Nagar', 'Pune', 'Maharashtra', '411001',
+   extensions.ST_SetSRID(extensions.ST_MakePoint(73.8743, 18.5286), 4326)::extensions.geography,
+   'open', 1, 2500, 15000, '05:00', '23:59',
+   'Station commuters welcome. Gate closes at midnight.', 'draft'),
+
+  ('10000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000003',
+   'Covered bay in Magarpatta City',
+   'Covered visitor bay inside the township, close to the Magarpatta IT offices and Seasons Mall.',
+   'Zeta Building, Magarpatta City, Hadapsar', 'Hadapsar', 'Pune', 'Maharashtra', '411013',
+   extensions.ST_SetSRID(extensions.ST_MakePoint(73.9260, 18.5158), 4326)::extensions.geography,
+   'covered', 2, 4000, 26000, '07:00', '22:00',
+   'Carry the pass - the township gate checks it on entry.', 'draft')
 on conflict (id) do nothing;
 
 -- Two photos each, the minimum the lifecycle trigger enforces at submission (spec 7.2).

@@ -41,7 +41,7 @@ export interface MapsAdapter {
 
   /**
    * Destination autocomplete on the Seeker search bar. Biased to the pilot city so a
-   * two-character query returns somewhere in Ahmedabad rather than somewhere in Ontario.
+   * two-character query returns somewhere in Pune rather than somewhere in Ontario.
    */
   autocomplete(input: string, options?: { sessionToken?: string }): Promise<PlaceSuggestion[]>;
 

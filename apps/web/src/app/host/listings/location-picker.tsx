@@ -113,7 +113,7 @@ export function LocationPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onBlur={geocodeTyped}
-          placeholder="e.g. Navrangpura, Ahmedabad"
+          placeholder="e.g. Koregaon Park, Pune"
           invalid={Boolean(fieldErrors?.['lat'])}
         />
       </Field>
@@ -172,14 +172,14 @@ export function LocationPicker({
           {/*
             Keyed on the resolved address so choosing a suggestion remounts the input with the
             new value prefilled, while still leaving the Host free to refine it afterwards -
-            the geocoder gives "Vastrapur, Ahmedabad", but a driver needs the gate number.
+            the geocoder gives "Koregaon Park, Pune", but a driver needs the lane and gate number.
           */}
           <Input
             id={`${baseId}-address`}
             key={resolved?.formattedAddress ?? 'empty'}
             name="addressLine"
             defaultValue={resolved?.formattedAddress ?? initial?.formattedAddress ?? ''}
-            placeholder="12 Swastik Society, Navrangpura"
+            placeholder="14 Lane 5, Koregaon Park"
             required
             invalid={Boolean(fieldErrors?.['addressLine'])}
           />
@@ -205,7 +205,7 @@ export function LocationPicker({
               maxLength={6}
               key={`pin-${resolved?.pincode ?? 'empty'}`}
               defaultValue={resolved?.pincode ?? ''}
-              placeholder="380009"
+              placeholder="411001"
               invalid={Boolean(fieldErrors?.['pincode'])}
             />
           </Field>

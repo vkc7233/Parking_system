@@ -49,7 +49,7 @@ checkout holds, the payout dispute hold, listing re-approval, the review window,
 suspension and the cancellation limit. Run it with `pnpm db:check`; CI runs it on every pull
 request.
 
-End-to-end through PostgREST with the anon key: the nearby search returns the 4 live seed
+End-to-end through PostgREST with the anon key: the nearby search returns the live seed
 listings ordered by distance, and direct reads of `bookings` and `users` return nothing —
 RLS holds against the auto-generated API, which is what spec §11 asks for.
 
@@ -273,4 +273,4 @@ Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on
   cancellation policy (A2) — both need to match what legal counsel publishes.
 - Open the vendor accounts in spec §13, starting with Razorpay merchant KYC and the WhatsApp
   Business API, since those have the longest lead times.
-- Choose the pilot city (A8) if it is not Ahmedabad.
+- Choose the pilot city (A8) if it is not Pune.

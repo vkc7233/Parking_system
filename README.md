@@ -53,7 +53,7 @@ What each step does:
 | `pnpm install`   | Installs the workspace                                                                                                                     |
 | `pnpm bootstrap` | Writes `apps/web/.env.local` from `.env.example` and generates an access-pass secret. Safe to re-run; it never overwrites an existing file |
 | `pnpm db:start`  | Starts Postgres + PostGIS, Auth, Storage and Studio in Docker. Slow the first time while images download                                   |
-| `pnpm db:reset`  | Applies all 9 migrations, then the seed — 5 users and 5 listings around Ahmedabad                                                          |
+| `pnpm db:reset`  | Applies all 9 migrations, then the seed — 5 users and 6 listings across Pune                                                               |
 | `pnpm dev`       | Runs the web app with hot reload                                                                                                           |
 
 Afterwards, `pnpm dev` on its own is enough — the database keeps running in Docker until you
@@ -130,7 +130,7 @@ packages/
   ui/         Design system primitives
 supabase/
   migrations/ Schema, triggers, and RLS policies
-  seed.sql    Local development data - a working Ahmedabad marketplace
+  seed.sql    Local development data - a working Pune marketplace
 docs/         Specification, assumptions, build status
 ```
 

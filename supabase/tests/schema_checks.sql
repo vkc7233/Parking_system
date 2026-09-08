@@ -74,9 +74,12 @@ select pg_temp.record('seed: auth token columns are empty strings, never NULL',
 select pg_temp.record('seed: every seeded auth user maps to exactly one profile',
   (select count(*) = (select count(*) from auth.users) from public.users));
 
-select pg_temp.record('seed: 4 live listings, 1 paused',
-  (select count(*) filter (where status = 'live') = 4
+select pg_temp.record('seed: 5 live listings, 1 paused',
+  (select count(*) filter (where status = 'live') = 5
       and count(*) filter (where status = 'paused') = 1
+   from public.listings),
+  (select format('live=%s paused=%s',
+     count(*) filter (where status = 'live'), count(*) filter (where status = 'paused'))
    from public.listings));
 
 select pg_temp.record('seed: every listing has >= 2 photos',
@@ -84,28 +87,40 @@ select pg_temp.record('seed: every listing has >= 2 photos',
      select count(*) c from public.listing_photos group by listing_id) s));
 
 select pg_temp.record('seed: agreement_signed_at synced from the evidence table (A6)',
-  (select count(*) = 5 from public.listings where agreement_signed_at is not null));
+  (select count(*) = (select count(*) from public.listings)
+     from public.listings where agreement_signed_at is not null),
+  (select format('%s of %s listings signed',
+     count(*) filter (where agreement_signed_at is not null), count(*))
+   from public.listings));
 
 -- ---------------------------------------------------------------------------
 -- PostGIS search (spec 7.1, 9.6)
 -- ---------------------------------------------------------------------------
 
--- All four live listings fall inside 10km of the city centre; the paused one must not.
-select pg_temp.record('search: nearby returns every live listing around Ahmedabad',
-  (select count(*) = 4 from public.search_nearby_listings(23.0225, 72.5714, 10000)),
-  (select count(*)::text from public.search_nearby_listings(23.0225, 72.5714, 10000)));
+-- From Shivajinagar, a 25km radius reaches every live listing including Hinjewadi; the paused
+-- one must not appear at any radius.
+select pg_temp.record('search: nearby returns every live listing around Pune',
+  (select count(*) = 5 from public.search_nearby_listings(18.5308, 73.8475, 25000)),
+  (select count(*)::text from public.search_nearby_listings(18.5308, 73.8475, 25000)));
+
+-- Hinjewadi is ~13km from the centre, so a 10km radius must exclude it. This is the check that
+-- would catch a swapped lat/lng: with the coordinates reversed nothing would be in range at all.
+select pg_temp.record('search: radius excludes Hinjewadi at 10km but includes it at 25km',
+  (select count(*) = 4 from public.search_nearby_listings(18.5308, 73.8475, 10000)),
+  (select count(*)::text from public.search_nearby_listings(18.5308, 73.8475, 10000)));
 
 select pg_temp.record('search: results are ordered by distance',
   (select bool_and(ordered) from (
      select distance_meters >= lag(distance_meters) over (order by distance_meters) as ordered
-       from public.search_nearby_listings(23.0225, 72.5714, 25000)) s
+       from public.search_nearby_listings(18.5308, 73.8475, 25000)) s
    where ordered is not null));
 
 select pg_temp.record('search: a paused listing never appears',
-  (select count(*) = 0 from public.search_nearby_listings(22.9964, 72.6009, 1000)
+  (select count(*) = 0 from public.search_nearby_listings(18.5286, 73.8743, 1000)
     where id = '10000000-0000-4000-8000-000000000005'));
 
-select pg_temp.record('search: radius actually excludes distant listings',
+-- Mumbai, ~120km away. Nothing in the pilot city should ever surface from there.
+select pg_temp.record('search: radius actually excludes another city',
   (select count(*) = 0 from public.search_nearby_listings(19.0760, 72.8777, 5000)));
 
 -- ---------------------------------------------------------------------------
@@ -116,8 +131,8 @@ insert into public.listings (
   id, host_id, title, address_line, city, location, spot_type, price_per_hour, status
 ) values (
   '90000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002',
-  'Test listing without photos', '1 Test Road', 'Ahmedabad',
-  extensions.ST_SetSRID(extensions.ST_MakePoint(72.5714, 23.0225), 4326)::extensions.geography,
+  'Test listing without photos', '1 Test Road', 'Pune',
+  extensions.ST_SetSRID(extensions.ST_MakePoint(73.8475, 18.5308), 4326)::extensions.geography,
   'open', 3000, 'draft'
 );
 
@@ -467,9 +482,9 @@ begin
     v_id := public.upsert_listing(
       p_title => 'RPC created listing',
       p_address_line => '1 RPC Road',
-      p_city => 'Ahmedabad',
-      p_lat => 23.0339,
-      p_lng => 72.5613,
+      p_city => 'Pune',
+      p_lat => 18.5362,
+      p_lng => 73.8939,
       p_spot_type => 'covered',
       p_price_per_hour => 3000
     );
@@ -487,7 +502,7 @@ begin
 
     -- The single easiest PostGIS mistake is swapping x and y; this catches it.
     perform pg_temp.record('RPC: lat/lng round-trip through the geography point',
-      (select round(lat::numeric, 4) = 23.0339 and round(lng::numeric, 4) = 72.5613
+      (select round(lat::numeric, 4) = 18.5362 and round(lng::numeric, 4) = 73.8939
          from public.listings where id = v_id),
       (select format('lat=%s lng=%s', round(lat::numeric, 4), round(lng::numeric, 4))
          from public.listings where id = v_id));
@@ -513,9 +528,9 @@ begin
       p_id => '10000000-0000-4000-8000-000000000001',  -- belongs to host 0002
       p_title => 'Hijacked',
       p_address_line => 'x',
-      p_city => 'Ahmedabad',
-      p_lat => 23.0,
-      p_lng => 72.5,
+      p_city => 'Pune',
+      p_lat => 18.53,
+      p_lng => 73.85,
       p_spot_type => 'open',
       p_price_per_hour => 100
     );
@@ -684,9 +699,9 @@ begin
     perform public.upsert_listing(
       p_title => 'Listing by a suspended host',
       p_address_line => '1 Suspended Street',
-      p_city => 'Ahmedabad',
-      p_lat => 23.03,
-      p_lng => 72.56,
+      p_city => 'Pune',
+      p_lat => 18.53,
+      p_lng => 73.84,
       p_spot_type => 'open',
       p_price_per_hour => 3000
     );

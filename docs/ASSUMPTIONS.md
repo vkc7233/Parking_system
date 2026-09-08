@@ -23,7 +23,7 @@ Two markers are used:
 | A5  | HMAC-signed QR pass + a Host-side verify screen           | OWNER       | Sprint 5 |
 | A6  | Typed name + checkbox + timestamp, IP, UA, agreement hash | LEGAL       | Sprint 2 |
 | A7  | 30-min slots, 1h minimum, 7-day maximum, 90 days ahead    | OWNER       | Sprint 4 |
-| A8  | Ahmedabad as the pilot city                               | OWNER       | Sprint 3 |
+| A8  | Pune as the pilot city, 5km default radius                | OWNER       | Sprint 3 |
 | A9  | Integer paise, UTC storage, explicit state machine        | —           | Sprint 0 |
 | A10 | Unpaid bookings hold the slot for 10 minutes, then expire | —           | Sprint 4 |
 | A11 | 48-hour dispute window; payouts held until it closes      | OWNER LEGAL | Sprint 6 |
@@ -186,13 +186,23 @@ overlap turns out to be a real support burden.
 
 **Spec gap:** §16 flags the choice as a risk but leaves it open.
 
-**Decision:** **Ahmedabad** as the placeholder. It sets the map's initial centre, the default
-search radius, and the geocoding viewport bias, and nothing else in the codebase depends on it.
-The seed data uses real high-parking-pressure micro-markets — Navrangpura/CG Road, Prahlad
-Nagar, Ellisbridge, Bodakdev, Maninagar.
+**Decision:** **Pune, Maharashtra.** It sets the map's initial centre, the default search radius
+and the geocoding viewport bias; nothing else in the codebase depends on it. Change `PILOT_CITY`
+in config to move.
 
-Change `PILOT_CITY` in config when the real choice is made. §16 asks that the choice be driven
-by actual parking scarcity near transit hubs and commercial districts rather than convenience.
+**Why the default radius is 5km rather than 3km.** §16 asks that the pilot be chosen on real
+parking scarcity rather than convenience, and Pune's scarcity is unusual in being _distributed_:
+Koregaon Park and Camp for restaurants and retail, Hinjewadi and Magarpatta for the IT corridors,
+Deccan and FC Road for colleges, Pune Station and Swargate for transit. These are separated
+pockets rather than one dense core, so a 3km radius from most destinations would return nothing
+and the marketplace would look empty when it is not.
+
+**Centre is Shivajinagar** (18.5308, 73.8475), which sits between the old city and the western
+corridor, so a default-radius search reaches both rather than favouring one side. Hinjewadi is
+deliberately ~13km out, which is what the schema check on search radius asserts against.
+
+The seed uses these same micro-markets, priced as they plausibly would be: Koregaon Park and
+Camp highest, Hinjewadi cheaper but selling on volume.
 
 ## A9 — Cross-cutting engineering defaults
 
@@ -412,7 +422,7 @@ answer before real money moves.
 - [ ] A2 — do the refund tiers match what you want published?
 - [ ] A3, A7 — pricing model and slot granularity
 - [ ] A5 — keep the Host-side pass verification screen, or drop it?
-- [ ] A8 — is Ahmedabad the pilot city?
+- [ ] A8 — confirm Pune, and the micro-markets to target first
 - [ ] A11, A12 — dispute window, payout cadence, ₹200 minimum
 - [ ] A13 — host cancellation consequences
 
