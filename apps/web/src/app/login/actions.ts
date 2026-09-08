@@ -15,6 +15,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { parseIndianMobile } from '@parking/core';
 import { createClient } from '@/lib/supabase/server';
+import { identify, track } from '@/lib/analytics';
 
 export interface AuthState {
   error?: string;
@@ -83,6 +84,21 @@ export async function verifyOtp(_prev: AuthState, formData: FormData): Promise<A
 
   if (error) {
     return { error: describeAuthError(error.message), phone: phone.data, otpSent: true };
+  }
+
+  // Counted once per account, not once per sign-in: an account whose `created_at` is within a
+  // few seconds of now was created by this verification. Without that guard every returning
+  // seeker would inflate the signup number in §3 and make acquisition look like retention.
+  const { data: session } = await supabase.auth.getUser();
+  const user = session.user;
+
+  if (user) {
+    const isNew = Date.now() - new Date(user.created_at).getTime() < 10_000;
+
+    await identify(user.id, { role: 'seeker' });
+    if (isNew) {
+      await track('signup_completed', { distinctId: user.id });
+    }
   }
 
   const next = formData.get('next');

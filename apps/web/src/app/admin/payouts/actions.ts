@@ -19,6 +19,7 @@ import { requireAdmin } from '@/lib/auth';
 import { getServerEnv } from '@/lib/env';
 import { createServiceClient } from '@/lib/supabase/service';
 import { notify } from '@/lib/notifications';
+import { track } from '@/lib/analytics';
 
 export interface PayoutActionState {
   error?: string;
@@ -155,6 +156,16 @@ export async function processHostPayout(hostId: string): Promise<PayoutActionSta
       variables: {
         amount: `₹${(total / 100).toFixed(2)}`,
         reference: result.payoutId,
+      },
+    });
+
+    await track('payout_processed', {
+      distinctId: hostId,
+      properties: {
+        payout_id: payout.id,
+        amount_paise: total,
+        bookings: lines.length,
+        oldest_completed_at: oldest.toISOString(),
       },
     });
 

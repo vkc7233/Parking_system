@@ -19,7 +19,7 @@ export function DestinationChips({ activeSlug }: { activeSlug: string | null }) 
   return (
     <nav
       aria-label="Popular areas"
-      className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0"
+      className="no-scrollbar -mx-3 flex snap-x gap-2 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
     >
       {PILOT_DESTINATIONS.map((destination) => {
         const active = destination.slug === activeSlug;

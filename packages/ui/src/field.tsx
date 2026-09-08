@@ -15,13 +15,17 @@ import { cn } from './cn';
  * never announces is not an error message.
  */
 
+// 16px text on the control itself, not 14px: iOS Safari zooms the whole page when a font-size
+// under 16px is focused, and a viewport that jumps mid-checkout is the sort of thing people
+// abandon a booking over.
 const controlBase =
-  'w-full rounded-md border bg-white px-3 py-2.5 text-base text-slate-900 placeholder:text-slate-400 ' +
-  'focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
+  'w-full rounded-lg border bg-white px-3 py-2.5 text-base text-slate-900 shadow-xs ' +
+  'placeholder:text-slate-400 transition-[border-color,box-shadow] duration-150 ' +
+  'focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
 
 const controlTone = {
-  normal: 'border-slate-300 focus:border-slate-900 focus:ring-slate-900',
-  invalid: 'border-red-400 focus:border-red-500 focus:ring-red-500',
+  normal: 'border-slate-300 hover:border-slate-400 focus:border-brand-500 focus:ring-brand-500/20',
+  invalid: 'border-red-400 focus:border-red-500 focus:ring-red-500/20',
 };
 
 export interface FieldProps {

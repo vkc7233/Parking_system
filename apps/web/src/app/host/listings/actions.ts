@@ -19,6 +19,7 @@ import { BOOKING, CAPACITY, PLATFORM } from '@parking/config';
 import { rupeesToPaise } from '@parking/core';
 import { requireHost } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { track } from '@/lib/analytics';
 
 export interface ListingFormState {
   error?: string;
@@ -178,7 +179,7 @@ export async function saveListing(
 
 /** Draft -> pending. The database checks photos and onboarding (spec §7.2). */
 export async function submitListing(listingId: string): Promise<ListingFormState> {
-  await requireHost('/host');
+  const profile = await requireHost('/host');
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -189,6 +190,15 @@ export async function submitListing(listingId: string): Promise<ListingFormState
   if (error) {
     return { error: describeDatabaseError(error.message) };
   }
+
+  // Paired with listing_approved, this gives §3 both halves of supply: how many hosts tried to
+  // list, and how many actually reached the market. A gap between them is an approval backlog,
+  // which is an operations problem rather than a demand one — and they look identical if only
+  // the live count is measured.
+  await track('listing_submitted', {
+    distinctId: profile.id,
+    properties: { listing_id: listingId },
+  });
 
   revalidatePath('/host');
   revalidatePath(`/host/listings/${listingId}/edit`);

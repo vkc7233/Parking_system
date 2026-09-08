@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { track } from '@/lib/analytics';
 
 export interface AdminActionState {
   error?: string;
@@ -84,6 +85,11 @@ export async function approveListing(
   }
 
   await audit(admin.id, 'approve_listing', 'listing', parsed.data.listingId);
+
+  await track('listing_approved', {
+    distinctId: admin.id,
+    properties: { listing_id: parsed.data.listingId },
+  });
 
   revalidatePath('/admin/listings');
   revalidatePath('/admin');

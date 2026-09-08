@@ -10,19 +10,25 @@
  * variable in production should surface as an obviously fake payment id in the logs on the
  * first test transaction, not as a silent failure to charge anyone.
  */
+import { FakeAnalyticsAdapter } from './analytics.fake';
+import { PostHogAnalyticsAdapter } from './analytics.posthog';
 import { FakeMapsAdapter } from './maps.fake';
 import { GoogleMapsAdapter } from './maps.google';
 import { FakeNotificationsAdapter } from './notifications.fake';
 import { Msg91NotificationsAdapter } from './notifications.msg91';
 import { FakePaymentsAdapter } from './payments.fake';
 import { RazorpayPaymentsAdapter } from './payments.razorpay';
+import type { AnalyticsAdapter } from './analytics';
 import type { MapsAdapter } from './maps';
 import type { NotificationsAdapter } from './notifications';
 import type { PaymentsAdapter } from './payments';
 
+export * from './analytics';
 export * from './maps';
 export * from './notifications';
 export * from './payments';
+export { FakeAnalyticsAdapter, type RecordedEvent } from './analytics.fake';
+export { PostHogAnalyticsAdapter } from './analytics.posthog';
 export { FakeMapsAdapter } from './maps.fake';
 export { GoogleMapsAdapter } from './maps.google';
 export { FakeNotificationsAdapter } from './notifications.fake';
@@ -44,12 +50,17 @@ export interface AdapterEnv {
 
   MAPS_PROVIDER?: string;
   GOOGLE_MAPS_API_KEY?: string;
+
+  ANALYTICS_PROVIDER?: string;
+  POSTHOG_KEY?: string;
+  POSTHOG_HOST?: string;
 }
 
 export interface Adapters {
   payments: PaymentsAdapter;
   notifications: NotificationsAdapter;
   maps: MapsAdapter;
+  analytics: AnalyticsAdapter;
 }
 
 /**
@@ -62,6 +73,7 @@ export interface Adapters {
 let fakePayments: FakePaymentsAdapter | undefined;
 let fakeNotifications: FakeNotificationsAdapter | undefined;
 let fakeMaps: FakeMapsAdapter | undefined;
+let fakeAnalytics: FakeAnalyticsAdapter | undefined;
 
 export function createPaymentsAdapter(env: AdapterEnv): PaymentsAdapter {
   if ((env.PAYMENTS_PROVIDER ?? 'fake') !== 'razorpay') {
@@ -105,10 +117,23 @@ export function createMapsAdapter(env: AdapterEnv): MapsAdapter {
   return new GoogleMapsAdapter({ apiKey: env.GOOGLE_MAPS_API_KEY ?? '' });
 }
 
+export function createAnalyticsAdapter(env: AdapterEnv): AnalyticsAdapter {
+  if ((env.ANALYTICS_PROVIDER ?? 'fake') !== 'posthog' || !env.POSTHOG_KEY) {
+    fakeAnalytics ??= new FakeAnalyticsAdapter();
+    return fakeAnalytics;
+  }
+
+  return new PostHogAnalyticsAdapter({
+    apiKey: env.POSTHOG_KEY,
+    ...(env.POSTHOG_HOST ? { host: env.POSTHOG_HOST } : {}),
+  });
+}
+
 export function createAdapters(env: AdapterEnv): Adapters {
   return {
     payments: createPaymentsAdapter(env),
     notifications: createNotificationsAdapter(env),
     maps: createMapsAdapter(env),
+    analytics: createAnalyticsAdapter(env),
   };
 }

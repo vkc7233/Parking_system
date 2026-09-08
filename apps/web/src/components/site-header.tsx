@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { getProfile } from '@/lib/auth';
-import { signOut } from '@/app/login/actions';
 
 /**
  * The seeker-facing header (spec §8.4).
@@ -43,15 +42,10 @@ export async function SiteHeader() {
                 <span className="sm:hidden">Host</span>
                 <span className="hidden sm:inline">List your space</span>
               </Link>
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className="rounded-md px-2.5 py-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 sm:px-3"
-                >
-                  <span className="sm:hidden">Exit</span>
-                  <span className="hidden sm:inline">Sign out</span>
-                </button>
-              </form>
+              <Link href="/account" className={linkClass} aria-label="Profile and settings">
+                <span className="sm:hidden">You</span>
+                <span className="hidden sm:inline">Profile</span>
+              </Link>
             </>
           ) : (
             <Link

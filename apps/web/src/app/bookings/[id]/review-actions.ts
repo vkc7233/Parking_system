@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { REVIEWS } from '@parking/config';
 import { requireProfile } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { track } from '@/lib/analytics';
 
 export interface ReviewState {
   error?: string;
@@ -77,6 +78,16 @@ export async function submitReview(_prev: ReviewState, formData: FormData): Prom
     }
     return { error: 'Could not save your rating. Please try again.' };
   }
+
+  await track('review_submitted', {
+    distinctId: profile.id,
+    properties: {
+      booking_id: parsed.data.bookingId,
+      listing_id: booking.listing_id,
+      rating: parsed.data.rating,
+      has_comment: Boolean(parsed.data.comment),
+    },
+  });
 
   revalidatePath(`/bookings/${parsed.data.bookingId}`);
   return { success: true };

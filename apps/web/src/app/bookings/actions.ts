@@ -28,6 +28,7 @@ import { getServerEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { notify } from '@/lib/notifications';
+import { track } from '@/lib/analytics';
 
 export interface BookingActionState {
   error?: string;
@@ -84,7 +85,7 @@ export async function createBooking(
 
   const { data: listing } = await supabase
     .from('listings')
-    .select('id, host_id, title, price_per_hour, price_per_day')
+    .select('id, host_id, title, locality, price_per_hour, price_per_day')
     .eq('id', parsed.data.listingId)
     .eq('status', 'live')
     .maybeSingle();
@@ -167,6 +168,20 @@ export async function createBooking(
     return { error: 'Payments are unavailable right now. Nothing has been charged.' };
   }
 
+  // The denominator of §3's booking-to-payment completion rate. Fired here, after the slot
+  // is held and a payment order exists, because that is the first moment a seeker is
+  // genuinely able to pay — counting any earlier would make the rate read worse than it is.
+  await track('booking_started', {
+    distinctId: profile.id,
+    properties: {
+      booking_id: booking.id,
+      listing_id: listing.id,
+      locality: listing.locality ?? null,
+      total_paise: quote.total,
+      billable_minutes: quote.billableMinutes,
+    },
+  });
+
   redirect(`/bookings/${booking.id}/checkout`);
 }
 
@@ -240,6 +255,18 @@ export async function confirmBookingPayment(
       listing: (booking.listings as { title?: string } | null)?.title ?? 'your space',
       start: new Date(booking.start_time).toLocaleString('en-IN'),
       reference: booking.reference,
+    },
+  });
+
+  // The numerator. Fired only after the payment was verified against the provider and the
+  // booking actually moved to confirmed, so it can never count a booking that a closed tab
+  // or a failed capture never completed.
+  await track('payment_completed', {
+    distinctId: profile.id,
+    properties: {
+      booking_id: booking.id,
+      reference: booking.reference,
+      total_paise: Number(booking.total),
     },
   });
 
@@ -335,6 +362,18 @@ export async function cancelBooking(bookingId: string): Promise<BookingActionSta
       listing: (booking.listings as { title?: string } | null)?.title ?? 'your space',
       reference: booking.reference,
       amount: `₹${(refund.totalRefund / 100).toFixed(2)}`,
+    },
+  });
+
+  await track('booking_cancelled', {
+    distinctId: profile.id,
+    properties: {
+      booking_id: booking.id,
+      cancelled_by: cancelledBy,
+      refund_paise: refund.totalRefund,
+      hours_before_start: Math.round(
+        (new Date(booking.start_time).getTime() - Date.now()) / 3_600_000,
+      ),
     },
   });
 

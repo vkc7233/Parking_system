@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { findPilotDestination, PILOT_CITY } from '@parking/config';
 import { formatDistance, searchNearbyListings } from '@parking/api-client';
-import { Badge, Card, EmptyState, Money } from '@parking/ui';
+import { Card, EmptyState, Money } from '@parking/ui';
 import type { LatLng, SearchResult } from '@parking/types';
 import { createClient } from '@/lib/supabase/server';
+import { getProfile } from '@/lib/auth';
+import { track } from '@/lib/analytics';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { ServiceUnavailable } from '@/components/service-unavailable';
@@ -125,38 +127,76 @@ export default async function HomePage({
     console.error('[home] nearby search failed', error);
   }
 
+  // Recorded only when the seeker actually asked something — a destination, a time, or a
+  // filter. Firing on the bare landing page would count every visit as a search and make the
+  // search-to-booking rate in §3 meaningless, which is the number that says whether people are
+  // finding anything.
+  const isDeliberateSearch = Boolean(
+    params.place || params.lat || params.start || params.spotType || params.maxPrice,
+  );
+
+  if (isDeliberateSearch && results !== null) {
+    const profile = await getProfile();
+
+    await track('search_performed', {
+      // A signed-out seeker still counts: the top of this funnel is mostly people who have not
+      // signed in yet, so dropping them would hide where they are lost.
+      distinctId: profile?.id ?? 'anonymous',
+      properties: {
+        locality: slug ?? params.where ?? null,
+        radius_meters: radius,
+        results: results.length,
+        has_time_filter: window !== null,
+        spot_type: params.spotType ?? null,
+      },
+    });
+  }
+
   return (
     <div className="min-h-dvh bg-slate-50">
       <SiteHeader />
 
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-6 pb-5 sm:pt-10 sm:pb-6">
-          <p className="text-sm font-medium text-brand-600">
-            {PILOT_CITY.name}, {PILOT_CITY.state}
+      {/*
+        * The search card overlaps the bottom of the dark panel rather than sitting under it.
+        * That overlap is doing real work: it makes the field the one element in front of
+        * everything else, so on a page that also offers eight areas and three filters there is
+        * no question what to do first.
+        */}
+      <section className="hero-surface relative">
+        <div className="mx-auto max-w-6xl px-4 pt-6 pb-20 sm:pt-14 sm:pb-28">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-brand-100 ring-1 ring-inset ring-white/15 backdrop-blur">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-400" aria-hidden="true" />
+            Now live in {PILOT_CITY.name}, {PILOT_CITY.state}
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+
+          <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-white sm:mt-4 sm:text-5xl sm:leading-[1.08]">
             Parking you have already booked
           </h1>
-          <p className="mt-2 hidden max-w-xl text-slate-600 sm:block">
+
+          <p className="mt-3 hidden max-w-xl text-sm leading-relaxed text-brand-100 sm:block sm:text-base">
             Reserve a real space near where you are going in {PILOT_CITY.name}, at a price you know
             before you leave. No circling Koregaon Park, no bargaining at the gate.
           </p>
+        </div>
+      </section>
 
-          <div className="mt-4 sm:mt-6">
+      <div className="relative z-10 -mt-16 sm:-mt-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-lift sm:p-4">
             <SearchBar
               initialWhere={slug ? label : (params.where ?? '')}
               initialStart={params.start ?? ''}
               initialEnd={params.end ?? ''}
             />
-          </div>
 
-          <div className="mt-4">
-            <DestinationChips activeSlug={slug} />
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <DestinationChips activeSlug={slug} />
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-8">
         {results === null ? (
           <ServiceUnavailable what="Search" />
         ) : (
@@ -211,22 +251,32 @@ export default async function HomePage({
                 <ul className="grid gap-4 sm:grid-cols-2">
                   {results.map((listing) => (
                     <li key={listing.id}>
-                      <Link href={'/listings/' + listing.id} className="group block h-full">
-                        <Card className="h-full overflow-hidden transition group-hover:border-slate-300 group-hover:shadow-md">
-                          <div className="relative aspect-4/3 bg-slate-100">
-                            <ListingPhoto
-                              src={listing.primaryPhotoUrl}
-                              alt={listing.title}
-                              spotType={listing.spotType}
-                              sizes="(max-width: 640px) 100vw, 320px"
-                            />
+                      <Link
+                        href={'/listings/' + listing.id}
+                        className="group block h-full focus:outline-none"
+                      >
+                        <Card interactive className="flex h-full flex-col overflow-hidden">
+                          <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
+                            <div className="h-full w-full transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]">
+                              <ListingPhoto
+                                src={listing.primaryPhotoUrl}
+                                alt={listing.title}
+                                spotType={listing.spotType}
+                                sizes="(max-width: 640px) 100vw, 320px"
+                              />
+                            </div>
 
-                            <span className="absolute bottom-2 left-2 rounded-full bg-white/95 px-2.5 py-1 text-xs font-medium text-slate-800 shadow-sm">
+                            <span className="absolute bottom-2.5 left-2.5 rounded-full bg-slate-900/75 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
                               {formatDistance(listing.distanceMeters)} away
                             </span>
 
+                            <span className="absolute top-2.5 left-2.5 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-700 capitalize backdrop-blur-sm">
+                              {listing.spotType}
+                            </span>
+
+                            {/* Amber only ever means scarcity here — see the palette note. */}
                             {listing.availableSlots <= 2 ? (
-                              <span className="absolute top-2 right-2 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 shadow-sm">
+                              <span className="absolute top-2.5 right-2.5 rounded-full bg-accent-500 px-2.5 py-1 text-xs font-semibold text-accent-900 shadow-sm">
                                 {listing.availableSlots === 0
                                   ? 'Full'
                                   : listing.availableSlots === 1
@@ -236,34 +286,43 @@ export default async function HomePage({
                             ) : null}
                           </div>
 
-                          <div className="p-4">
+                          <div className="flex flex-1 flex-col p-4">
                             <div className="flex items-start justify-between gap-2">
-                              <h2 className="text-sm font-semibold text-slate-900">
+                              <h2 className="text-sm leading-snug font-semibold text-slate-900 transition-colors group-hover:text-brand-700">
                                 {listing.title}
                               </h2>
                               {listing.averageRating !== null ? (
-                                <span className="shrink-0 text-xs text-slate-600">
-                                  ★ {listing.averageRating.toFixed(1)}
-                                  <span className="text-slate-400"> ({listing.reviewCount})</span>
+                                <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-slate-700">
+                                  <span className="text-accent-500" aria-hidden="true">
+                                    ★
+                                  </span>
+                                  {listing.averageRating.toFixed(1)}
+                                  <span className="font-normal text-slate-400">
+                                    ({listing.reviewCount})
+                                  </span>
                                 </span>
                               ) : (
-                                <span className="shrink-0 text-xs text-slate-400">New</span>
+                                <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                                  New
+                                </span>
                               )}
                             </div>
 
-                            <p className="mt-0.5 truncate text-sm text-slate-600">
+                            <p className="mt-1 truncate text-sm text-slate-500">
                               {listing.locality ? listing.locality + ', ' : ''}
                               {listing.city}
                             </p>
 
-                            <div className="mt-3 flex items-end justify-between gap-2">
-                              <p className="text-sm text-slate-900">
-                                <span className="text-base font-semibold">
+                            <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+                              <p className="text-slate-900">
+                                <span className="text-lg font-semibold tracking-tight">
                                   <Money paise={listing.pricePerHour} showDecimals={false} />
                                 </span>
-                                <span className="text-slate-500"> / hour</span>
+                                <span className="text-sm text-slate-500"> / hour</span>
                               </p>
-                              <Badge tone="neutral">{listing.spotType}</Badge>
+                              <span className="text-xs font-medium text-brand-600 opacity-0 transition-opacity group-hover:opacity-100">
+                                View →
+                              </span>
                             </div>
                           </div>
                         </Card>

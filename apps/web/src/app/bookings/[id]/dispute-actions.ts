@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { DISPUTE } from '@parking/config';
 import { requireProfile } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { track } from '@/lib/analytics';
 
 export interface DisputeState {
   error?: string;
@@ -58,6 +59,11 @@ export async function raiseDispute(_prev: DisputeState, formData: FormData): Pro
     }
     return { error: 'Could not raise that. Please try again.' };
   }
+
+  await track('dispute_raised', {
+    distinctId: profile.id,
+    properties: { booking_id: parsed.data.bookingId },
+  });
 
   revalidatePath(`/bookings/${parsed.data.bookingId}`);
   return { success: true };

@@ -24,11 +24,11 @@ export function SpotArt({ spotType }: { spotType: SpotType }) {
 
   return (
     <div
-      className="flex h-full w-full items-center justify-center bg-linear-to-br from-slate-100 to-slate-200"
+      className="flex h-full w-full items-center justify-center bg-linear-135 from-brand-50 via-slate-50 to-brand-100/70"
       role="img"
       aria-label={`No photo yet — ${label.toLowerCase()} space`}
     >
-      <svg viewBox="0 0 96 72" className="h-24 w-32 text-slate-400" aria-hidden="true">
+      <svg viewBox="0 0 96 72" className="h-24 w-32 text-brand-300" aria-hidden="true">
         {art === 'underground' ? (
           <path
             d="M8 22h80M18 22v30M78 22v30M32 52h32M36 42h24"
