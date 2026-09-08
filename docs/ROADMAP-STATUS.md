@@ -8,9 +8,9 @@ Tracks the sprint plan in specification §14. Update the status column as work l
 | 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | **Complete** — see below    |
 | 2 (Week 3) | Host Listing Agreement e-signature, Admin approval queue         | **Complete** — see below    |
 | 3 (Week 4) | Map + list search, filters, listing detail                       | **Partly done** — see below |
-| 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | Not started                 |
-| 5 (Week 6) | Notifications, My Bookings, cancellation + refund, rate & review | Not started                 |
-| 6 (Week 7) | Admin dashboard, user management, disputes, payout triggering    | Not started                 |
+| 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | **Complete** — see below    |
+| 5 (Week 6) | Notifications, My Bookings, cancellation + refund, rate & review | **Complete** — see below    |
+| 6 (Week 7) | Admin dashboard, user management, disputes, payout triggering    | **Complete** — see below    |
 | 7 (Week 8) | QA bug bash, legal pages, analytics verification, launch         | Not started                 |
 
 ## Sprint 0 — delivered
@@ -274,3 +274,54 @@ Each is small, each is justified in `ASSUMPTIONS.md`, and each can be removed on
 - Open the vendor accounts in spec §13, starting with Razorpay merchant KYC and the WhatsApp
   Business API, since those have the longest lead times.
 - Choose the pilot city (A8) if it is not Pune.
+
+## Sprint 6 — delivered
+
+Settlement: the half of the marketplace that decides whether a Host ever lists a second space.
+
+- **Host earnings** (`/host/earnings`, spec §7.2) — three figures rather than one balance:
+  ready to pay out, still held, and paid out so far. Each is computed from the bookings
+  themselves, never from a running total that could drift, which is what §7.2's acceptance
+  criterion asks for. The per-booking badge is derived from the same `isPayoutEligible` the
+  payout run uses, so a booking can never read as "held" here while the Admin screen offers
+  to pay it.
+- **Admin payout run** (`/admin/payouts`, spec §6.3 step 3, §7.3) — per-host amounts owed, how
+  old the oldest is, and their KYC state, because §6.3 asks an Admin to exercise judgement
+  before releasing money. Sending is confirm-then-act.
+- **Double-pay is impossible by construction** — §7.3's criterion is that a payout cannot be
+  triggered twice for the same booking. That is a `UNIQUE` constraint on
+  `payout_bookings.booking_id`, not an `if` in the action, so a double-click, a retry and two
+  Admins clicking at once all end with one payout and a failed second attempt.
+- **Disputes** — a Seeker raises one from their own booking within the 48-hour window (A11),
+  through their own session so RLS applies. The Admin queue leads with the facts the decision
+  turns on: what they said, what is at stake, and whether the access pass was ever scanned.
+  Resolving in the Seeker's favour refunds through the payments adapter and records the
+  reasoning in the audit log.
+- **The hold is real** — earnings on a disputed booking are excluded from
+  `unpaid_host_earnings` for as long as the dispute is open, so the Admin decision always
+  precedes the money.
+
+### Verified against the live stack
+
+Not just type-checked — driven in a browser against the running database:
+
+- Admin signed in, `/admin/payouts` showed Meena Kulkarni owed ₹270 across 2 bookings, KYC
+  verified, "above the minimum". Sending it produced `pout_fake0000000001`, status `paid`,
+  the queue emptied, and `admin_audit_log` recorded `process_payout` with the amount and
+  booking count.
+- A Seeker raised a dispute on a booking that ended an hour earlier; the Admin queue showed it
+  with "Checked in — Never scanned". Resolved with a refund: `rfnd_fake0000000001`, payment
+  moved to `refunded`, `refunded_amount` 10350, and Meena is now owed 0 — the refunded booking
+  never becomes payable.
+
+Two defects this found, neither of which typecheck or unit tests could have:
+
+- **The earnings query crashed on every host.** PostgREST decides an embed's shape from the
+  constraint behind it: `disputes.booking_id` is not unique so it returns an array, but
+  `payout_bookings.booking_id` *is* unique — that is the double-pay guard — so it returns an
+  object or `null`. Reading `.length` off it threw.
+- **No refund could be processed locally.** The fake payments adapter holds its state in
+  memory, so any payment made before the last dev-server reload was unknown to it and every
+  refund failed at the provider. That silently made cancellation refunds and dispute refunds —
+  the two paths most worth exercising — untestable. The adapter now rehydrates from the amount
+  our own `payments` row recorded, keeping the over-refund cap.

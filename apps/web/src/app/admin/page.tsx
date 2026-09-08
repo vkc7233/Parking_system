@@ -18,22 +18,28 @@ export default async function AdminDashboardPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [users, hosts, liveListings, pendingListings, pendingDocs, bookings, completed] =
-    await Promise.all([
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'host'),
-      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'live'),
-      supabase
-        .from('listings')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending'),
-      supabase
-        .from('documents')
-        .select('id', { count: 'exact', head: true })
-        .eq('verified_status', 'pending'),
-      supabase.from('bookings').select('id', { count: 'exact', head: true }),
-      supabase.from('bookings').select('total').eq('status', 'completed'),
-    ]);
+  const [
+    users,
+    hosts,
+    liveListings,
+    pendingListings,
+    pendingDocs,
+    bookings,
+    completed,
+    openDisputes,
+  ] = await Promise.all([
+    supabase.from('users').select('id', { count: 'exact', head: true }),
+    supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'host'),
+    supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'live'),
+    supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase
+      .from('documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('verified_status', 'pending'),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }),
+    supabase.from('bookings').select('total').eq('status', 'completed'),
+    supabase.from('disputes').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+  ]);
 
   const gmv = (completed.data ?? []).reduce((sum, b) => sum + Number(b.total), 0);
 
@@ -56,6 +62,12 @@ export default async function AdminDashboardPage() {
       count: pendingDocs.count ?? 0,
       href: '/admin/documents',
       hint: 'A host cannot submit a listing until all three are on file.',
+    },
+    {
+      label: 'Open disputes',
+      count: openDisputes.count ?? 0,
+      href: '/admin/disputes',
+      hint: 'A host is not paid on a booking while its dispute is unresolved.',
     },
   ];
 
@@ -119,9 +131,22 @@ export default async function AdminDashboardPage() {
         ))}
       </section>
 
-      <p className="text-xs text-slate-500">
-        Bookings, disputes and payouts arrive with Sprints 4 to 6 — see docs/ROADMAP-STATUS.md.
-      </p>
+      <section>
+        <h2 className="mb-3 text-sm font-medium text-slate-900">Money</h2>
+        <Card>
+          <CardBody>
+            <Link href="/admin/payouts" className="flex items-center justify-between gap-4">
+              <span>
+                <span className="block text-sm font-medium text-slate-900">Process payouts</span>
+                <span className="mt-0.5 block text-sm text-slate-600">
+                  Earnings clear once each booking&apos;s dispute window closes.
+                </span>
+              </span>
+              <span className="shrink-0 text-sm font-medium text-slate-500">Open →</span>
+            </Link>
+          </CardBody>
+        </Card>
+      </section>
     </div>
   );
 }

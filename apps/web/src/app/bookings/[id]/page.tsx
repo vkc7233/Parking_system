@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CANCELLATION } from '@parking/config';
+import { CANCELLATION, DISPUTE } from '@parking/config';
 import { calculateRefund, canBeReviewed, type BookingStatus } from '@parking/core';
 import { Badge, Card, CardBody, CardHeader, FormSuccess, Money } from '@parking/ui';
 import { requireProfile } from '@/lib/auth';
@@ -10,6 +10,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { SiteHeader } from '@/components/site-header';
 import { CancelBooking } from './cancel-booking';
 import { ReviewForm } from './review-form';
+import { DisputeForm } from './dispute-form';
 
 export const metadata = { title: 'Booking' };
 
@@ -92,6 +93,20 @@ export default async function BookingDetailPage({
           cancelledBy: isSeeker ? 'seeker' : 'host',
         })
       : null;
+
+  const { data: existingDispute } = await service
+    .from('disputes')
+    .select('status, reason')
+    .eq('booking_id', booking.id)
+    .maybeSingle();
+
+  // A11: the window a seeker has to report a problem, and the same window the host's earnings
+  // are held for.
+  const disputeWindowOpen =
+    isSeeker &&
+    (booking.status === 'completed' || booking.status === 'confirmed') &&
+    Date.now() < end.getTime() + DISPUTE.windowHoursAfterBookingEnd * 3_600_000 &&
+    Date.now() > start.getTime();
 
   const { data: existingReview } = await service
     .from('reviews')
@@ -225,6 +240,25 @@ export default async function BookingDetailPage({
                 bookingId={booking.id}
                 refundAmount={refundIfCancelledNow.totalRefund}
                 isFullRefund={refundIfCancelledNow.isFullRefund}
+              />
+            </CardBody>
+          </Card>
+        ) : null}
+
+        {disputeWindowOpen || existingDispute ? (
+          <Card className="mt-5">
+            <CardHeader
+              title="Report a problem"
+              description={`Within ${DISPUTE.windowHoursAfterBookingEnd} hours of the booking ending.`}
+            />
+            <CardBody>
+              <DisputeForm
+                bookingId={booking.id}
+                existing={
+                  existingDispute
+                    ? { status: existingDispute.status, reason: existingDispute.reason }
+                    : null
+                }
               />
             </CardBody>
           </Card>

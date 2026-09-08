@@ -87,6 +87,13 @@ export interface PaymentsAdapter {
     paymentId: string;
     amount: number;
     notes?: Record<string, string>;
+    /**
+     * What our own `payments` row says was captured. Optional, and never authoritative - the
+     * provider's own record decides what can be refunded. It exists so an adapter that does not
+     * hold provider-side history (the local fake) can still enforce the over-refund cap instead
+     * of failing outright on a payment it has never seen.
+     */
+    capturedAmount?: number;
   }): Promise<RefundResult>;
 
   /** Admin-triggered host settlement (spec 6.3, 9.7). */

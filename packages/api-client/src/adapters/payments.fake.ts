@@ -147,19 +147,50 @@ export class FakePaymentsAdapter implements PaymentsAdapter {
     };
   }
 
+  /**
+   * `capturedAmount` rehydrates a payment this instance has never seen, for the same reason
+   * `simulateCheckout` does: the store is in memory, so every payment made before the last dev
+   * server reload - and every seeded or fixture payment - is unknown to it. Without this, no
+   * cancellation refund and no dispute resolved in the seeker's favour can be exercised locally,
+   * which is precisely the path most worth exercising. The over-refund cap still applies; it is
+   * simply measured against what our own payments row recorded.
+   */
   async refund(input: {
     paymentId: string;
     amount: number;
     notes?: Record<string, string>;
+    capturedAmount?: number;
   }): Promise<RefundResult> {
     const orderId = this.paymentsByOrder.get(input.paymentId);
-    const entry = orderId ? this.orders.get(orderId) : undefined;
+    let entry = orderId ? this.orders.get(orderId) : undefined;
 
     if (!entry?.payment) {
-      throw new PaymentAdapterError(`Unknown payment ${input.paymentId}`, 'not_found');
+      if (input.capturedAmount === undefined) {
+        throw new PaymentAdapterError(`Unknown payment ${input.paymentId}`, 'not_found');
+      }
+
+      const rehydratedOrderId = `order_for_${input.paymentId}`;
+      entry = {
+        order: {
+          orderId: rehydratedOrderId,
+          amount: input.capturedAmount,
+          currency: 'INR',
+          receipt: rehydratedOrderId,
+        },
+        payment: {
+          paymentId: input.paymentId,
+          orderId: rehydratedOrderId,
+          amount: input.capturedAmount,
+          method: 'upi',
+          capturedAt: new Date(),
+        },
+        refunded: 0,
+      };
+      this.orders.set(rehydratedOrderId, entry);
+      this.paymentsByOrder.set(input.paymentId, rehydratedOrderId);
     }
 
-    const remaining = entry.payment.amount - entry.refunded;
+    const remaining = entry.payment!.amount - entry.refunded;
     if (input.amount > remaining) {
       throw new PaymentAdapterError(
         `Refund of ${input.amount} exceeds the ${remaining} still refundable`,

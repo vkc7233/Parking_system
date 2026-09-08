@@ -287,7 +287,7 @@ export async function cancelBooking(bookingId: string): Promise<BookingActionSta
   // Only a captured payment can be refunded; an unpaid booking simply releases its slot.
   const { data: payment } = await service
     .from('payments')
-    .select('provider_payment_id, status, refunded_amount')
+    .select('provider_payment_id, status, amount, refunded_amount')
     .eq('booking_id', booking.id)
     .maybeSingle();
 
@@ -296,6 +296,7 @@ export async function cancelBooking(bookingId: string): Promise<BookingActionSta
       const result = await payments().refund({
         paymentId: payment.provider_payment_id,
         amount: refund.totalRefund,
+        capturedAmount: Number(payment.amount),
         notes: { booking_id: booking.id, reason: refund.reason },
       });
 
