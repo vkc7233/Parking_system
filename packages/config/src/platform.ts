@@ -94,6 +94,75 @@ export const PILOT_CITY = {
   defaultMapZoom: 13,
 } as const;
 
+/**
+ * The Pune areas offered as one-tap destinations on the search screen.
+ *
+ * A product decision, not map data: these are the micro-markets §16 says the pilot lives or
+ * dies on - the IT corridors, the commercial cores, the eating-out districts and the transit
+ * hubs - so they are the destinations worth putting in front of a Seeker before they type.
+ * The geocoder still answers for everywhere else in Pune.
+ *
+ * Ordered by how often a driver in Pune actually gives up looking for a space.
+ */
+export const PILOT_DESTINATIONS = [
+  {
+    slug: 'koregaon-park',
+    name: 'Koregaon Park',
+    blurb: 'Restaurants and nightlife',
+    center: { lat: 18.5362, lng: 73.8939 },
+  },
+  {
+    slug: 'camp',
+    name: 'Camp / MG Road',
+    blurb: 'Shopping and offices',
+    center: { lat: 18.5158, lng: 73.879 },
+  },
+  {
+    slug: 'baner',
+    name: 'Baner',
+    blurb: 'Offices and restaurants',
+    center: { lat: 18.559, lng: 73.7868 },
+  },
+  {
+    slug: 'hinjewadi',
+    name: 'Hinjewadi',
+    blurb: 'IT park',
+    center: { lat: 18.5913, lng: 73.7389 },
+  },
+  {
+    slug: 'deccan',
+    name: 'Deccan / FC Road',
+    blurb: 'Colleges and shopping',
+    center: { lat: 18.5164, lng: 73.8416 },
+  },
+  {
+    slug: 'viman-nagar',
+    name: 'Viman Nagar',
+    blurb: 'Airport and malls',
+    center: { lat: 18.5679, lng: 73.9143 },
+  },
+  {
+    slug: 'kharadi',
+    name: 'Kharadi',
+    blurb: 'IT park',
+    center: { lat: 18.5515, lng: 73.9497 },
+  },
+  {
+    slug: 'pune-station',
+    name: 'Pune Station',
+    blurb: 'Rail and bus',
+    center: { lat: 18.5286, lng: 73.8743 },
+  },
+] as const;
+
+export type PilotDestination = (typeof PILOT_DESTINATIONS)[number];
+
+/** The one-tap destination with this slug, or null. Used to resolve `?place=` on search. */
+export function findPilotDestination(slug: string | undefined): PilotDestination | null {
+  if (!slug) return null;
+  return PILOT_DESTINATIONS.find((d) => d.slug === slug) ?? null;
+}
+
 /** A9 — Cross-cutting engineering defaults. */
 export const PLATFORM = {
   currency: 'INR',

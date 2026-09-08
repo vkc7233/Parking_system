@@ -8,7 +8,8 @@ import { getProfile } from '@/lib/auth';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { BookingForm } from './booking-form';
-import { ListingThumbnail } from '../../host/listing-thumbnail';
+import { ListingPhoto } from '@/components/listing-photo';
+import { SpotArt } from '@/components/spot-art';
 
 interface PublicListing {
   id: string;
@@ -145,16 +146,20 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
                   (i === 0 ? 'sm:col-span-2 sm:row-span-2 aspect-4/3' : 'aspect-4/3')
                 }
               >
-                <ListingThumbnail
+                <ListingPhoto
                   src={photoUrl(photo.storage_path)}
                   alt={photo.alt_text ?? listing.title}
+                  spotType={listing.spot_type}
                   sizes="(max-width: 640px) 100vw, 400px"
-                  className="object-cover"
                 />
               </li>
             ))}
           </ul>
-        ) : null}
+        ) : (
+          <div className="mt-5 aspect-21/9 overflow-hidden rounded-xl border border-slate-200">
+            <SpotArt spotType={listing.spot_type} />
+          </div>
+        )}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2">
