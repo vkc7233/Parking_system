@@ -7,7 +7,7 @@ Tracks the sprint plan in specification §14. Update the status column as work l
 | 0 (Week 1) | Foundation                                                       | **Complete** — see below    |
 | 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | **Complete** — see below    |
 | 2 (Week 3) | Host Listing Agreement e-signature, Admin approval queue         | **Complete** — see below    |
-| 3 (Week 4) | Map + list search, filters, listing detail                       | **Partly done** — see below |
+| 3 (Week 4) | Map + list search, filters, listing detail                       | **Complete** — see below    |
 | 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | **Complete** — see below    |
 | 5 (Week 6) | Notifications, My Bookings, cancellation + refund, rate & review | **Complete** — see below    |
 | 6 (Week 7) | Admin dashboard, user management, disputes, payout triggering    | **Complete** — see below    |
@@ -166,7 +166,7 @@ appears in seeker search.
 - **Audit trail** — every approval, rejection, suspension and document ruling writes to
   `admin_audit_log` through the service role, so an admin cannot author their own trail.
 
-## Sprint 3 — partly delivered
+## Sprint 3 — delivered
 
 - **Seeker search** (§7.1, §8.1) — distance-ordered results with radius, spot type and price
   filters. Filters live in the URL, so a result set is shareable, survives a refresh, and is
@@ -178,9 +178,24 @@ appears in seeker search.
 - **My Bookings** (§8.1) — real page with upcoming/past split, replacing the 404 that the header
   had been linking to.
 
-**Not done in Sprint 3:** the visual map, and booking itself. The map needs the Google Maps
-JavaScript API and a billing account (§13); the list is the half of §8.1 that drives the
-decision, so it ships first. Slot selection, Razorpay checkout and the access pass are Sprint 4.
+### Completed later, alongside the Pune pilot work
+
+- **Destination search** (§8.1) — the screen previously centred every search on the middle of
+  Pune, so "parking near Koregaon Park" could not be asked. A geocoder-backed field now sets
+  the centre, with the eight Pune micro-markets §16 names offered as one-tap chips. Autocomplete
+  runs as a server action, not from the browser: the Maps key never ships to the client, and
+  once this is Google rather than the fixture set, a keystroke would otherwise be a billed call.
+- **Time-of-arrival filter** (§8.1) — the search RPC already took a window; nothing passed one,
+  so a space already taken at 7pm looked identical to a free one. Verified against the database
+  that filling a listing's capacity for a window removes it from a search for that window and
+  leaves it in an unfiltered one.
+- **The map.** Street tiles still need a billing account (§13), but the geometry does not: pins
+  placed by true bearing and distance, rings at half and full reach, tap a price to see the
+  space. Longitude is scaled by cos(latitude) — raw degrees stretch the plot east-west by about
+  5% at Pune's latitude, enough to reorder two pins. Tiles replace the backdrop in one file when
+  they arrive. §9.6 keeps rendering outside the maps adapter precisely so these can land apart.
+
+Slot selection, Razorpay checkout and the access pass shipped in Sprint 4.
 
 ## Sprints 4 and 5 — delivered and verified
 
@@ -325,3 +340,25 @@ Two defects this found, neither of which typecheck or unit tests could have:
   refund failed at the provider. That silently made cancellation refunds and dispute refunds —
   the two paths most worth exercising — untestable. The adapter now rehydrates from the amount
   our own `payments` row recorded, keeping the over-refund cap.
+
+## Pune pilot and interface pass
+
+The platform now names its pilot city everywhere it matters, and the seeker screens were
+measured on the device seekers use.
+
+- **Pune throughout** — `PILOT_CITY` centres on Shivajinagar with a 5 km default radius, the
+  geocoder fixture holds fourteen real Pune localities chosen for genuine parking pressure, and
+  the seed describes six spaces across the micro-markets at ₹25–₹60/hour.
+- **Mobile.** On a 375px viewport the first search result sat at y=812 — exactly one screen
+  down. The eight area chips wrapped into a 244px block and "List your space" wrapped onto three
+  lines in the header. Chips became one scrolling row, the header carries short labels below
+  `sm`, and the hero steps down. First result now lands at y=466, with no horizontal overflow on
+  the search, listing or booking screens.
+- **Photos.** A grid of identical grey "No image" boxes reads as a broken page rather than a new
+  marketplace, and early listings will have no photo for days. Both cases a seeker cannot tell
+  apart — no photo row, and a photo row whose object no longer loads — now draw the same artwork
+  for the spot type.
+- **Directions.** The listing page printed raw coordinates, which is developer output dressed as
+  information. Both the listing and the access pass now link into the seeker's own maps app, by
+  coordinates rather than address: these are unmarked bays inside gated societies, which address
+  search routes to the wrong side of the block often enough to matter.

@@ -244,7 +244,15 @@ export default async function BookingDetailPage({
           <Card className="mt-5">
             <CardHeader
               title="Need to cancel?"
-              description={`Free cancellation up to ${CANCELLATION.tiers[0]?.minHoursBeforeStart} hours before you arrive.`}
+              // The headline has to describe THIS booking, not the policy in general. Saying
+              // "free cancellation up to 6 hours before" above a line that refunds half reads
+              // as a promise being broken, on the one screen where trust about money is the
+              // whole product.
+              description={
+                refundIfCancelledNow.isFullRefund
+                  ? `Free until ${CANCELLATION.tiers[0]?.minHoursBeforeStart} hours before you arrive.`
+                  : 'You are now inside the free-cancellation window, so a part of the price is kept.'
+              }
             />
             <CardBody>
               <CancelBooking

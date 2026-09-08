@@ -93,19 +93,30 @@ Auth is phone-OTP only, no passwords (spec §7.1). Locally there is no SMS provi
 `supabase/config.toml` maps the seeded numbers to fixed codes under `[auth.sms.test_otp]`, so
 sign-in works offline. Enter the 10-digit number; the code is `1000` plus its last two digits.
 
-| Sign in as   | Number       | Code     | Role   |
-| ------------ | ------------ | -------- | ------ |
-| Priya Admin  | `9000000001` | `100001` | admin  |
-| Meena Shah   | `9000000002` | `100002` | host   |
-| Kiran Patel  | `9000000003` | `100003` | host   |
-| Rohan Desai  | `9000000004` | `100004` | seeker |
-| Anjali Mehta | `9000000005` | `100005` | seeker |
+| Sign in as     | Number       | Code     | Role   |
+| -------------- | ------------ | -------- | ------ |
+| Priya Deshmukh | `9000000001` | `100001` | admin  |
+| Meena Kulkarni | `9000000002` | `100002` | host   |
+| Kiran Joshi    | `9000000003` | `100003` | host   |
+| Rohan Bhosale  | `9000000004` | `100004` | seeker |
+| Anjali Sathe   | `9000000005` | `100005` | seeker |
 
-**Where to go once you are in.** The home page is seeker search and works signed out. Sign in as
-**Meena** and open **List your space** for the host experience — onboarding, listings, photos and
-the Host Listing Agreement. Sign in as **Priya** and type **`/admin`** for the approval queue,
-document review and user management; nothing links to `/admin`, by design (§8.4), and a
-non-admin gets a 404 there rather than a 403.
+**Where to go once you are in.** The home page is seeker search and works signed out — type a
+Pune area or tap one of the eight chips, optionally give an arrival and departure time, and the
+results and map re-centre there. Sign in as **Meena** and open **List your space** for the host
+experience — onboarding, listings, photos, the Host Listing Agreement, and **Earnings** for the
+payout split. Sign in as **Priya** and type **`/admin`** for the approval queue, document
+review, user management, the payout run and the dispute queue; nothing links to `/admin`, by
+design (§8.4), and a non-admin gets a 404 there rather than a 403.
+
+To see the payout and dispute screens with something in them, load the fixture after a reset:
+
+```bash
+docker exec -i supabase_db_Parking_System psql -U postgres -d postgres < supabase/tests/payout_fixture.sql
+```
+
+It gives Meena two bookings past their dispute window (payable now) and one still held, which
+is exactly the split those screens exist to distinguish.
 
 In production none of this applies: Supabase Auth routes OTP delivery through a custom SMS
 hook to MSG91 (spec §9.5).
@@ -190,13 +201,15 @@ capture, and a payout ending in `07` paise fails.
 Sprint 0 (Foundation) is complete and verified against a real database: monorepo, schema with
 PostGIS and RLS, domain logic with tests, vendor adapters, phone-OTP auth, and CI.
 
-Sprint 1 (host onboarding, listings, photo upload) and Sprint 2 (Host Listing Agreement
-e-signature, admin approval queue, document review, user management) are complete and verified
-in a browser. Sprint 3 has seeker search, listing detail and My Bookings; the map and booking
-itself are next.
+Sprints 1 through 6 are complete and verified in a browser against the live stack — host
+onboarding and listings, the Listing Agreement and admin approval, destination-and-time search
+with a map, booking, payment, the QR access pass, cancellation and refunds, notifications,
+reviews, and settlement: host earnings, the admin payout run and the dispute queue.
 
-The whole chain works end to end today: a host lists a space and signs the agreement, an admin
-approves it, and it appears in seeker search with a transparent price breakdown.
+The whole chain works end to end today: a host lists a space in Pune and signs the agreement, an
+admin approves it, a seeker searches Koregaon Park for a Saturday evening, books and pays, shows
+a QR pass on arrival — and afterwards the host is paid, or the seeker disputes and is refunded.
+Sprint 7 (analytics instrumentation and the QA bug bash) is what remains.
 
 63 unit tests, 58 schema behaviour checks, lint and typecheck clean, production build green.
 The phone-OTP sign-in flow is verified end to end in a browser against the live database.
