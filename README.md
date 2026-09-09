@@ -217,12 +217,16 @@ to `completed`, and published opening hours were never enforced. See
 [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md) for the full list and the eleven regression
 checks added with them.
 
-**What is genuinely not done**, all of it waiting on an account named in spec §13 rather than on
-code: the Razorpay Checkout browser widget, RazorpayX fund accounts for payouts, MSG91 DLT and
-WhatsApp template approval (and a transactional email provider), and Google Maps tiles. Each
-adapter is written and tested against a working fake, so these are credential and client-half
-tasks, not redesigns. Also outstanding: pointing `NEXT_PUBLIC_SENTRY_DSN` at a real project, and
-a device-matrix pass on real handsets.
+**Every code half is now written**, including the ones previously recorded as blocked: the
+Razorpay Checkout browser widget, RazorpayX Contact and Fund Account registration with a bank
+form that never stores an account number, env-driven MSG91 template ids, real Google Maps tiles,
+and a scheduled route that sends the reminder and review-request messages nothing was sending.
+
+What remains is **accounts, credentials and two approvals with real-world waiting periods** —
+DLT SMS templates take one to three weeks and nothing you do later shortens that.
+
+→ **[`docs/GO-LIVE.md`](docs/GO-LIVE.md) is the checklist**: every variable to set, where each
+credential comes from, how to tell it worked, and an honest list of what is still not built.
 
 106 unit tests, 70 schema behaviour checks, lint and typecheck clean, production build green.
 The phone-OTP sign-in flow is verified end to end in a browser against the live database.
