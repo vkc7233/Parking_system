@@ -210,10 +210,11 @@ settings, the host bookings calendar, admin CSV reporting, funnel analytics and 
 The whole chain works end to end today: a host lists a space in Pune and signs the agreement, an
 admin approves it, a seeker searches Koregaon Park for a Saturday evening, books and pays, shows
 a QR pass on arrival — and afterwards the host is paid, or the seeker disputes and is refunded.
-What remains before launch is the QA bug bash across a real device matrix, and pointing error
-tracking at a live Sentry project.
+All seven sprints are done. What remains before launch is pointing `NEXT_PUBLIC_SENTRY_DSN` at
+a real Sentry project and confirming the first event arrives, plus a device-matrix pass on real
+handsets — neither is something local verification can stand in for.
 
-92 unit tests, 59 schema behaviour checks, lint and typecheck clean, production build green.
+101 unit tests, 59 schema behaviour checks, lint and typecheck clean, production build green.
 The phone-OTP sign-in flow is verified end to end in a browser against the live database.
 Sprints 2–7 are outlined in spec §14 and tracked in
 [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).

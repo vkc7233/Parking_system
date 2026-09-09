@@ -11,6 +11,8 @@
  * first test transaction, not as a silent failure to charge anyone.
  */
 import { FakeAnalyticsAdapter } from './analytics.fake';
+import { FakeErrorTrackingAdapter } from './errors.fake';
+import { SentryErrorTrackingAdapter, parseSentryDsn } from './errors.sentry';
 import { PostHogAnalyticsAdapter } from './analytics.posthog';
 import { FakeMapsAdapter } from './maps.fake';
 import { GoogleMapsAdapter } from './maps.google';
@@ -19,15 +21,19 @@ import { Msg91NotificationsAdapter } from './notifications.msg91';
 import { FakePaymentsAdapter } from './payments.fake';
 import { RazorpayPaymentsAdapter } from './payments.razorpay';
 import type { AnalyticsAdapter } from './analytics';
+import type { ErrorTrackingAdapter } from './errors';
 import type { MapsAdapter } from './maps';
 import type { NotificationsAdapter } from './notifications';
 import type { PaymentsAdapter } from './payments';
 
 export * from './analytics';
+export * from './errors';
 export * from './maps';
 export * from './notifications';
 export * from './payments';
 export { FakeAnalyticsAdapter, type RecordedEvent } from './analytics.fake';
+export { FakeErrorTrackingAdapter, type RecordedError } from './errors.fake';
+export { SentryErrorTrackingAdapter, parseSentryDsn, type ParsedDsn } from './errors.sentry';
 export { PostHogAnalyticsAdapter } from './analytics.posthog';
 export { FakeMapsAdapter } from './maps.fake';
 export { GoogleMapsAdapter } from './maps.google';
@@ -54,6 +60,10 @@ export interface AdapterEnv {
   ANALYTICS_PROVIDER?: string;
   POSTHOG_KEY?: string;
   POSTHOG_HOST?: string;
+
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
 }
 
 export interface Adapters {
@@ -61,6 +71,7 @@ export interface Adapters {
   notifications: NotificationsAdapter;
   maps: MapsAdapter;
   analytics: AnalyticsAdapter;
+  errors: ErrorTrackingAdapter;
 }
 
 /**
@@ -74,6 +85,7 @@ let fakePayments: FakePaymentsAdapter | undefined;
 let fakeNotifications: FakeNotificationsAdapter | undefined;
 let fakeMaps: FakeMapsAdapter | undefined;
 let fakeAnalytics: FakeAnalyticsAdapter | undefined;
+let fakeErrors: FakeErrorTrackingAdapter | undefined;
 
 export function createPaymentsAdapter(env: AdapterEnv): PaymentsAdapter {
   if ((env.PAYMENTS_PROVIDER ?? 'fake') !== 'razorpay') {
@@ -129,11 +141,33 @@ export function createAnalyticsAdapter(env: AdapterEnv): AnalyticsAdapter {
   });
 }
 
+/**
+ * Error tracking, from the DSN.
+ *
+ * A malformed DSN falls back to the console adapter rather than throwing. A typo in an
+ * environment variable should cost error reporting, not the ability to boot.
+ */
+export function createErrorTrackingAdapter(env: AdapterEnv): ErrorTrackingAdapter {
+  const parsed = env.SENTRY_DSN ? parseSentryDsn(env.SENTRY_DSN) : null;
+
+  if (!parsed) {
+    fakeErrors ??= new FakeErrorTrackingAdapter();
+    return fakeErrors;
+  }
+
+  return new SentryErrorTrackingAdapter({
+    dsn: parsed,
+    ...(env.SENTRY_ENVIRONMENT ? { environment: env.SENTRY_ENVIRONMENT } : {}),
+    ...(env.SENTRY_RELEASE ? { release: env.SENTRY_RELEASE } : {}),
+  });
+}
+
 export function createAdapters(env: AdapterEnv): Adapters {
   return {
     payments: createPaymentsAdapter(env),
     notifications: createNotificationsAdapter(env),
     maps: createMapsAdapter(env),
     analytics: createAnalyticsAdapter(env),
+    errors: createErrorTrackingAdapter(env),
   };
 }

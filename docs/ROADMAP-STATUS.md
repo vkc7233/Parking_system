@@ -429,6 +429,52 @@ inside `packages/ui` was therefore never generated — the class lands in the HT
 rule, and the component renders unstyled with nothing failing anywhere. The `@source`
 declarations at the top of `globals.css` are what make the shared component library shareable.
 
-**Still open for launch:** the QA bug bash across a real device matrix, and error tracking wired
-to a live Sentry project (§7.4's criterion — "visible in the dashboard within 1 minute" — cannot
-be verified without one).
+### Error tracking (§7.4)
+
+§7.4 asks for "automatic capture of application errors in production". The word doing the work
+is *automatic*: reporting from each `catch` only ever covers the failures someone remembered to
+wrap. Capture is wired to Next's `onRequestError` instrumentation hook instead, which sees every
+uncaught error from server components, server actions, route handlers and middleware alike.
+
+No Sentry SDK. `@sentry/nextjs` installs a build plugin, wraps the server runtime and ships a
+client bundle — a large amount of machinery for one criterion that a single JSON POST to the
+Store endpoint satisfies. If distributed tracing is wanted later, `errors.sentry.ts` is the one
+file that changes.
+
+Two rules the adapter enforces:
+
+- **It cannot throw.** The caller is already in a failure path; an exception raised while
+  reporting replaces a handled error with an unhandled one and loses the original — the thing
+  actually worth knowing. Requests are capped at two seconds and failures are swallowed.
+- **It never carries a phone number or an email**, only the platform user id. Otherwise the
+  error tracker accumulates a second copy of the user directory, in a third-party system chosen
+  for debugging rather than for holding personal data (§12, and the DPDP obligations §7.4 is
+  drafted against).
+
+A malformed DSN falls back to the console adapter rather than throwing, so a typo in an
+environment variable costs error reporting and not the ability to boot.
+
+**Verified end to end.** A deliberately throwing route was added, hit, and removed: the hook
+fired and the adapter recorded `[error-tracking] [App Router:route] instrumentation smoke test`
+with the route path and method as tags. With a DSN set, that same call POSTs to Sentry.
+
+### QA pass
+
+Against a freshly reset database:
+
+- 59 of 59 schema behaviour checks pass — capacity limits, checkout holds, the payout dispute
+  hold, listing re-approval, the review window, host suspension and the cancellation limit.
+- 101 unit tests, lint, typecheck and the production build are green.
+- The booking loop was walked in a browser: sign in by OTP, open a listing, pick a slot (no
+  `stepMismatch` — the bug that once made booking impossible), hold the slot, pay, and land on a
+  confirmed booking with its QR pass. Cancellation quoted ₹35.00 of ₹80.50 for a booking four
+  hours out, which is the A2 tier applied to the subtotal with the service fee retained.
+- The host pass check was run on that booking and correctly refused it: **"Do not let them in —
+  this booking has not started yet."** The pass is valid only from shortly before arrival, so a
+  driver turning up four hours early is not admitted.
+- Every screen measured at 1265px and 375px: no horizontal overflow, no element past the
+  viewport, correct active navigation tab.
+
+**Still open for launch:** pointing `NEXT_PUBLIC_SENTRY_DSN` at a real Sentry project and
+confirming the first event lands there, and a device-matrix pass on real handsets — neither is
+something local verification can stand in for.
