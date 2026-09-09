@@ -478,3 +478,61 @@ Against a freshly reset database:
 **Still open for launch:** pointing `NEXT_PUBLIC_SENTRY_DSN` at a real Sentry project and
 confirming the first event lands there, and a device-matrix pass on real handsets — neither is
 something local verification can stand in for.
+
+## Spec audit, 9 September 2026
+
+Every Must and Should feature in §7, and every screen in §8, was checked against what is
+actually built rather than against what the commit messages claimed. This section is the honest
+state afterwards. The headline: **a green build had been hiding four Must-feature failures**,
+none of which broke anything visibly.
+
+### Fixed
+
+| Failure | Criterion it broke |
+| --- | --- |
+| A host could not pause, reprice or edit a live listing — RLS required `approved_by is null` and approval sets it | §7.2 "pausing a listing immediately removes it from Seeker search results"; A14 |
+| A booking refunded through a dispute was still paid to the host — the platform paid both sides | §7.2 "earnings total always matches the sum of completed, non-refunded bookings" |
+| Nothing ever moved a booking to `completed`; the sweeps were scheduled only in a README sentence, so no review ever opened and no host was ever paid | §7.1 "a completed booking correctly moves from upcoming to past automatically at end time" |
+| Published opening hours were never enforced — a 02:00 booking was accepted on an 07:00–23:30 listing | §7.2 available hours |
+| Money was summed by fetching rows, which PostgREST truncates at 1000 silently | §7.3 export reconciliation; §12 volumes |
+| "Paid out so far" counted payouts that had **failed** | §7.2 earnings |
+| No admin screen showed booking status with the provider payment reference; no admin could cancel | §7.3 "every booking's status and payment reference visible from one screen" |
+| `/host/suspended` did not exist, so a suspended host got a 404 on every host page | §7.3 |
+| No support contact existed, while the Terms claimed one was "linked from the app" | §7.1 basic support contact |
+| Client-side errors reached no tracker; `assertProvidersConfigured()` was never called | §7.4 error tracking |
+| The booking page threw once a booking had a second dispute | — |
+| Checkout had no legal links; the host calendar showed no past bookings; no min-price filter or sort control | §7.4 legal; §7.2 calendar; §7.1 filters |
+
+Eleven regression checks were added to `supabase/tests/schema_checks.sql` (70 total). Every one
+of these defects passed a green build, so the checks are the point, not the fixes.
+
+### Still blocked on vendor credentials — adapters ready, client halves absent
+
+These are not oversights; each is waiting on an account named in §13, and the server side of
+each is already written and tested against a fake.
+
+- **Razorpay Checkout (§7.1, Must).** Order creation, capture verification and the webhook are
+  complete. The browser half — loading `checkout.razorpay.com` and opening the widget — is not
+  written, so against a real provider nothing can currently be paid. Needs the merchant account.
+- **Razorpay payouts (§7.3, Must).** `createPayout` sends the platform's host id as
+  `fund_account_id`, which is not a Razorpay fund account. Host bank details are captured as an
+  uploaded document, so there is no structured account/IFSC and no contact/fund-account creation
+  step. Needs the RazorpayX account, and a structured bank-details form.
+- **MSG91 delivery (§7.1, Must).** `createNotificationsAdapter` hard-codes empty template maps,
+  so with `NOTIFICATIONS_PROVIDER=msg91` every SMS and WhatsApp send throws
+  `template_not_approved`, and the email branch always throws — there is no transactional email
+  provider at all. Needs DLT and WhatsApp template approval, and an email provider decision.
+  `booking_reminder` and `review_request` templates exist and are never sent.
+- **Google Maps tiles (§7.1, Must).** `result-map.tsx` draws real geometry with no street tiles,
+  and the listing form captures coordinates without a map. Needs the billing account.
+
+### Known deviations, accepted
+
+- **§11's Edge Functions are Next.js server actions and a route handler.** Functionally
+  equivalent and service-role gated. Worth restating in the spec rather than rewriting the code.
+- **The Maps key is `NEXT_PUBLIC_`**, so it reaches the browser. That is required for the
+  JavaScript SDK and is why Google restricts keys by HTTP referrer instead. An earlier note in
+  this file implied otherwise.
+- **Refunds are netted off the host's share**, not split between the host payout and the
+  platform fee. Conservative and exact for the only flow that refunds a completed booking; a
+  partial refund meant to come out of the fee alone would need the split recorded on the booking.

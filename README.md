@@ -210,11 +210,21 @@ settings, the host bookings calendar, admin CSV reporting, funnel analytics and 
 The whole chain works end to end today: a host lists a space in Pune and signs the agreement, an
 admin approves it, a seeker searches Koregaon Park for a Saturday evening, books and pays, shows
 a QR pass on arrival — and afterwards the host is paid, or the seeker disputes and is refunded.
-All seven sprints are done. What remains before launch is pointing `NEXT_PUBLIC_SENTRY_DSN` at
-a real Sentry project and confirming the first event arrives, plus a device-matrix pass on real
-handsets — neither is something local verification can stand in for.
+All seven sprints are built, and a full audit of §7 and §8 against the code on 9 September 2026
+found and fixed four Must-feature failures that a green build had been hiding — a host could not
+pause a live listing, a refunded booking was still paid to its host, nothing ever moved a booking
+to `completed`, and published opening hours were never enforced. See
+[`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md) for the full list and the eleven regression
+checks added with them.
 
-101 unit tests, 59 schema behaviour checks, lint and typecheck clean, production build green.
+**What is genuinely not done**, all of it waiting on an account named in spec §13 rather than on
+code: the Razorpay Checkout browser widget, RazorpayX fund accounts for payouts, MSG91 DLT and
+WhatsApp template approval (and a transactional email provider), and Google Maps tiles. Each
+adapter is written and tested against a working fake, so these are credential and client-half
+tasks, not redesigns. Also outstanding: pointing `NEXT_PUBLIC_SENTRY_DSN` at a real project, and
+a device-matrix pass on real handsets.
+
+106 unit tests, 70 schema behaviour checks, lint and typecheck clean, production build green.
 The phone-OTP sign-in flow is verified end to end in a browser against the live database.
 Sprints 2–7 are outlined in spec §14 and tracked in
 [`docs/ROADMAP-STATUS.md`](docs/ROADMAP-STATUS.md).
