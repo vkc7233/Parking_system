@@ -40,6 +40,36 @@ exception when others then
 end;
 $$;
 
+-- EVERYTHING BELOW RUNS IN ONE TRANSACTION THAT IS ROLLED BACK AT THE END.
+--
+-- These checks suspend a host, cancel bookings, pause listings and create test rows, in the same
+-- database the dev server is serving. Without this they left that wreckage behind: a host
+-- browsing the app afterwards found half the listings paused and a listing called "RPC created
+-- listing" sitting in their own calendar.
+--
+-- `check_results` and the pg_temp helpers are created ABOVE this line on purpose. A temporary
+-- table created inside a transaction is dropped by the rollback, which would take the results
+-- with it; created outside, it lives for the session and can still be read afterwards.
+begin;
+
+/*
+ * Drops any assumed identity.
+ *
+ * The checks below run inside ONE transaction so they can be rolled back, and `set_config(...,
+ * true)` is transaction-scoped - so an identity assumed by one check used to leak into every
+ * check after it. Under the old autocommit behaviour each statement was its own transaction and
+ * this never showed up; inside one long transaction it made later checks run as whoever the last
+ * one impersonated, which surfaced as "Only an admin can publish a listing" from an unrelated
+ * fixture line.
+ */
+create or replace function pg_temp.reset_identity()
+returns void language plpgsql as $$
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Seed integrity
 -- ---------------------------------------------------------------------------
@@ -513,6 +543,8 @@ begin
 end;
 $$;
 
+select pg_temp.reset_identity();
+
 -- RLS: one host must not be able to edit another's listing.
 do $$
 declare
@@ -543,6 +575,8 @@ begin
   perform pg_temp.record('RLS: a host cannot edit another host''s listing', v_blocked, v_detail);
 end;
 $$;
+
+select pg_temp.reset_identity();
 
 select pg_temp.record('RLS: the other host''s listing is untouched',
   (select title <> 'Hijacked' from public.listings
@@ -581,6 +615,8 @@ begin
 end;
 $$;
 
+select pg_temp.reset_identity();
+
 -- A seeker must not be able to promote themselves to admin through the profile policy.
 do $$
 declare
@@ -604,6 +640,8 @@ begin
     v_role::text);
 end;
 $$;
+
+select pg_temp.reset_identity();
 
 -- Photo positions: deleting from the middle must not leave a gap the next insert collides with.
 insert into public.listing_photos (listing_id, storage_path, position)
@@ -715,6 +753,8 @@ begin
 end;
 $$;
 
+select pg_temp.reset_identity();
+
 -- ---------------------------------------------------------------------------
 -- Regressions found by auditing the build against the spec (2026-09-09)
 --
@@ -773,6 +813,8 @@ begin
   perform pg_temp.record('spec 7.2: a host cannot publish their own listing', not v_published, 'host self-published');
 end;
 $$;
+
+select pg_temp.reset_identity();
 
 -- Refunds must leave the host's earnings. Resolving a dispute in the seeker's favour refunds the
 -- money and leaves the booking `completed`, which used to make it payable again - the platform
@@ -915,6 +957,10 @@ order by id;
 select format('%s of %s checks passed', count(*) filter (where passed), count(*))
   as summary from check_results;
 
+-- Undo every mutation above. The results have already been printed, and `check_results` is a
+-- temporary table so it survives this to be read once more below.
+rollback;
+
 do $$
 declare
   v_failed integer;
@@ -925,3 +971,5 @@ begin
   end if;
 end;
 $$;
+
+drop table if exists check_results;

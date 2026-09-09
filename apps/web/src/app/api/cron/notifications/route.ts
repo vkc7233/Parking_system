@@ -15,8 +15,8 @@ import { captureError } from '@/lib/observability';
  * lives in the application and not in the database. The two database sweeps stay in pg_cron
  * because they are pure SQL.
  *
- * Idempotent by construction: `notifications` rows are the record of what was sent, and each pass
- * skips bookings that already have one of that template. A double-fire sends nothing twice, which
+ * Idempotent by construction: `notification_log` rows are the record of what was sent, and each
+ * pass skips bookings that already have one of that template. A double-fire sends nothing twice, which
  * matters because a scheduler retrying on a timeout is normal.
  */
 
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   try {
     const { data: upcoming } = await service
       .from('bookings')
-      .select('id, reference, seeker_id, start_time, listings(title), notifications(template)')
+      .select('id, reference, seeker_id, start_time, listings(title), notification_log(template)')
       .eq('status', 'confirmed')
       .gte('start_time', new Date(now).toISOString())
       .lte('start_time', new Date(now + REMINDER_LEAD_HOURS * 3_600_000).toISOString());
@@ -57,9 +57,9 @@ export async function GET(request: Request) {
       seeker_id: string;
       start_time: string;
       listings: { title: string } | null;
-      notifications: { template: string }[] | null;
+      notification_log: { template: string }[] | null;
     }[]) {
-      if ((booking.notifications ?? []).some((n) => n.template === 'booking_reminder')) continue;
+      if ((booking.notification_log ?? []).some((n) => n.template === 'booking_reminder')) continue;
 
       await notify({
         userId: booking.seeker_id,
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
 
     const { data: finished } = await service
       .from('bookings')
-      .select('id, seeker_id, end_time, listings(title), notifications(template), reviews(id)')
+      .select('id, seeker_id, end_time, listings(title), notification_log(template), reviews(id)')
       .eq('status', 'completed')
       .lte('end_time', new Date(now - REVIEW_DELAY_HOURS * 3_600_000).toISOString())
       .gte('end_time', new Date(now - REVIEW_LOOKBACK_HOURS * 3_600_000).toISOString());
@@ -85,10 +85,10 @@ export async function GET(request: Request) {
       id: string;
       seeker_id: string;
       listings: { title: string } | null;
-      notifications: { template: string }[] | null;
+      notification_log: { template: string }[] | null;
       reviews: { id: string }[] | null;
     }[]) {
-      if ((booking.notifications ?? []).some((n) => n.template === 'review_request')) continue;
+      if ((booking.notification_log ?? []).some((n) => n.template === 'review_request')) continue;
       // Asking someone to rate a stay they already rated is the kind of message people mute a
       // whole sender over.
       if ((booking.reviews ?? []).length > 0) continue;
