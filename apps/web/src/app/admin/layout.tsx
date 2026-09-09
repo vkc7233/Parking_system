@@ -32,7 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAdmin();
 
   const [listings, documents, disputes] = await Promise.all([
-    pendingCount('listings', 'status', 'pending_approval'),
+    pendingCount('listings', 'status', 'pending'),
     pendingCount('documents', 'verified_status', 'pending'),
     pendingCount('disputes', 'status', 'open'),
   ]);

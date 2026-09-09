@@ -29,6 +29,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { notify } from '@/lib/notifications';
 import { track } from '@/lib/analytics';
+import { captureError } from '@/lib/observability';
 
 export interface BookingActionState {
   error?: string;
@@ -217,18 +218,48 @@ export async function confirmBookingPayment(
     return { error: 'This booking can no longer be paid for.' };
   }
 
+  // The order this booking is actually waiting to be paid for. Everything below is checked
+  // against it, because the payment id arrives from the browser and is not evidence of anything
+  // on its own.
+  const { data: expected } = await service
+    .from('payments')
+    .select('provider_order_id, amount')
+    .eq('booking_id', booking.id)
+    .maybeSingle();
+
+  if (!expected) {
+    return { error: 'No payment was started for this booking.' };
+  }
+
   const captured = await payments().fetchPayment(providerPaymentId);
 
   if (!captured) {
     return { error: 'That payment has not completed. Nothing has been charged.' };
   }
 
-  // Guards against a captured payment for a different, cheaper booking being replayed here.
-  if (captured.amount !== Number(booking.total)) {
+  /*
+   * The payment must belong to THIS booking's order.
+   *
+   * The amount check alone is not enough and the comment here used to claim otherwise: any two
+   * bookings with the same total are interchangeable under it, so a seeker who genuinely paid
+   * once could replay that payment id against a second booking of the same price and have it
+   * confirmed for nothing. Tying it to the order is what makes the payment specific to this
+   * booking rather than merely plausible for it.
+   */
+  if (captured.orderId !== expected.provider_order_id) {
+    return { error: 'That payment belongs to a different booking.' };
+  }
+
+  if (captured.amount !== Number(expected.amount)) {
     return { error: 'The payment amount does not match this booking.' };
   }
 
-  await service
+  /*
+   * `provider_payment_id` is UNIQUE, which is the database-level backstop against the same
+   * payment being attached to two bookings. Its error was previously discarded, so a rejected
+   * write fell through and the booking was confirmed anyway - the guard existed and did nothing.
+   */
+  const { error: paymentError } = await service
     .from('payments')
     .update({
       provider_payment_id: captured.paymentId,
@@ -237,6 +268,18 @@ export async function confirmBookingPayment(
       captured_at: captured.capturedAt.toISOString(),
     })
     .eq('booking_id', booking.id);
+
+  if (paymentError) {
+    if (paymentError.code === '23505') {
+      await captureError(new Error(`Payment ${captured.paymentId} replayed on booking ${booking.id}`), {
+        source: 'bookings/confirm',
+        severity: 'warning',
+        userId: profile.id,
+      });
+      return { error: 'That payment has already been used for another booking.' };
+    }
+    return { error: 'Could not record that payment. Nothing has been confirmed.' };
+  }
 
   const { error } = await service
     .from('bookings')

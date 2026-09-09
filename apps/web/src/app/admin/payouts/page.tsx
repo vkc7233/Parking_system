@@ -38,52 +38,53 @@ export default async function AdminPayoutsPage() {
   await requireAdmin();
   const service = createServiceClient();
 
-  const { data: hostRows } = await service
-    .from('users')
-    .select('id, name, phone, kyc_status')
-    .in('role', ['host', 'admin'])
-    .order('name');
+  /*
+   * One round trip for the whole queue.
+   *
+   * This used to fetch every host and then call `unpaid_host_earnings` once per host, awaiting in
+   * sequence. The function is fast, but each call is a separate HTTP round trip through PostgREST
+   * — fine at five hosts, and two hundred sequential trips at two hundred. The RPC does the
+   * grouping in SQL and reuses that same per-host function internally, so the queue and the
+   * payout run cannot drift apart about what is owed.
+   */
+  const { data: queueRows } = await service.rpc('hosts_with_unpaid_earnings');
 
-  const hosts = (hostRows ?? []) as HostRow[];
+  const queue = (queueRows ?? []) as {
+    host_id: string;
+    name: string | null;
+    phone: string;
+    kyc_status: string;
+    total: number;
+    booking_count: number;
+    oldest_completed_at: string;
+    fund_account_id: string | null;
+    account_last4: string | null;
+  }[];
 
-  // Which hosts can actually receive money. Shown next to the amount so an admin sees the
-  // blocker before clicking Pay, rather than as an error message afterwards.
-  const { data: bankRows } = await service
-    .from('host_bank_accounts')
-    .select('host_id, account_last4');
-
+  // Which hosts can actually receive money, so an admin sees the blocker before clicking Pay
+  // rather than as an error message afterwards.
   const banked = new Map(
-    ((bankRows ?? []) as { host_id: string; account_last4: string }[]).map((b) => [
-      b.host_id,
-      b.account_last4,
-    ]),
+    queue
+      .filter((row) => row.fund_account_id && row.account_last4)
+      .map((row) => [row.host_id, row.account_last4!]),
   );
 
-  const owed: Owed[] = [];
-
-  for (const host of hosts) {
-    const { data } = await service.rpc('unpaid_host_earnings', {
-      p_host_id: host.id,
-      p_period_start: '-infinity',
-      p_period_end: 'infinity',
-    });
-
-    const lines = (data ?? []) as { completed_at: string; amount: number }[];
-    if (lines.length === 0) continue;
-
-    const total = lines.reduce((sum, l) => sum + Number(l.amount), 0);
-    const oldest = lines.reduce(
-      (min, l) => (new Date(l.completed_at) < min ? new Date(l.completed_at) : min),
-      new Date(lines[0]!.completed_at),
-    );
+  const owed: Owed[] = queue.map((row) => {
+    const total = Number(row.total);
+    const oldest = new Date(row.oldest_completed_at);
     const ageDays = (Date.now() - oldest.getTime()) / 86_400_000;
     const forced = ageDays > PAYOUT.forceOutAfterDays;
     const due = total >= PAYOUT.minimumPayout || forced;
 
-    owed.push({
-      host,
+    return {
+      host: {
+        id: row.host_id,
+        name: row.name,
+        phone: row.phone,
+        kyc_status: row.kyc_status,
+      },
       total,
-      count: lines.length,
+      count: row.booking_count,
       oldest,
       due,
       reason: due
@@ -91,9 +92,10 @@ export default async function AdminPayoutsPage() {
           ? `Older than ${PAYOUT.forceOutAfterDays} days — paid regardless of the minimum.`
           : 'Above the minimum.'
         : `Below the ${formatPaise(PAYOUT.minimumPayout)} minimum — carries forward.`,
-    });
-  }
+    };
+  });
 
+  // The RPC already orders by amount; this keeps the page correct if that ever changes.
   owed.sort((a, b) => b.total - a.total);
   const dueNow = owed.filter((o) => o.due);
 

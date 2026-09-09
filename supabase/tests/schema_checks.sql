@@ -941,6 +941,65 @@ select pg_temp.record('A10: the unpaid-hold expiry sweep is scheduled',
   'expire_unpaid_bookings is not scheduled');
 
 -- ---------------------------------------------------------------------------
+-- Privileged RPCs are not reachable through the auto-generated API
+--
+-- `CREATE FUNCTION` grants EXECUTE to PUBLIC, and `REVOKE ... FROM anon, authenticated` does not
+-- remove it - those roles inherit through PUBLIC. Verified before the fix: an ordinary seeker
+-- could read another host's unpaid revenue and the platform's whole GMV over PostgREST.
+-- ---------------------------------------------------------------------------
+
+do $$
+declare
+  v_leaked_revenue boolean := false;
+  v_leaked_gmv boolean := false;
+  v_ran_sweep boolean := false;
+  v_search_works boolean := false;
+begin
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}';
+
+  begin
+    perform 1 from public.unpaid_host_earnings('00000000-0000-4000-8000-000000000002', '-infinity', 'infinity');
+    v_leaked_revenue := true;
+  exception when insufficient_privilege then v_leaked_revenue := false;
+           when others then v_leaked_revenue := false;
+  end;
+
+  begin
+    perform 1 from public.report_totals('-infinity', 'infinity', array['completed']);
+    v_leaked_gmv := true;
+  exception when insufficient_privilege then v_leaked_gmv := false;
+           when others then v_leaked_gmv := false;
+  end;
+
+  begin
+    perform public.complete_elapsed_bookings();
+    v_ran_sweep := true;
+  exception when insufficient_privilege then v_ran_sweep := false;
+           when others then v_ran_sweep := false;
+  end;
+
+  -- The other half of the check: locking down must not break what the app legitimately calls.
+  begin
+    perform 1 from public.search_nearby_listings(18.5362, 73.8939, 5000, null, null, null, null, null, 50, 0);
+    v_search_works := true;
+  exception when others then v_search_works := false;
+  end;
+
+  perform pg_temp.reset_identity();
+
+  perform pg_temp.record('security: a seeker cannot read another host''s unpaid revenue',
+    not v_leaked_revenue, 'unpaid_host_earnings is callable by authenticated');
+  perform pg_temp.record('security: a seeker cannot read platform GMV',
+    not v_leaked_gmv, 'report_totals is callable by authenticated');
+  perform pg_temp.record('security: a seeker cannot run the booking sweep',
+    not v_ran_sweep, 'complete_elapsed_bookings is callable by authenticated');
+  perform pg_temp.record('search still works for a signed-in seeker after the lockdown',
+    v_search_works, 'search_nearby_listings was revoked too far');
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Results
 -- ---------------------------------------------------------------------------
 

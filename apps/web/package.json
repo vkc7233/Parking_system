@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node ../../scripts/ensure-port.mjs 3000 && next dev",
+    "dev": "node ../../scripts/ensure-port.mjs 3000 && next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint src --max-warnings 0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:webpack": "node ../../scripts/ensure-port.mjs 3000 && next dev"
   },
   "dependencies": {
     "@parking/api-client": "workspace:*",
