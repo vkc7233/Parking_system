@@ -169,13 +169,24 @@ export default async function HomePage({
             Now live in {PILOT_CITY.name}, {PILOT_CITY.state}
           </p>
 
-          <h1 className="mt-3 max-w-3xl text-2xl font-semibold tracking-tight text-balance text-white sm:mt-4 sm:text-5xl sm:leading-[1.08]">
-            Parking you have already booked
+          {/*
+            * The headline names the problem, not the mechanism. "Parking you have already
+            * booked" described what the product does but read, to someone arriving cold, like
+            * a heading over their own past bookings — a page they had landed on by mistake.
+            * Circling for a space is the thing a Pune driver already recognises, so that is
+            * what the first line says; the sub-heading is where the promise goes.
+            */}
+          <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-balance text-white sm:mt-4 sm:text-6xl sm:leading-[1.05]">
+            Stop circling.
+            <br className="hidden sm:block" />{' '}
+            <span className="bg-linear-to-r from-brand-200 to-white bg-clip-text text-transparent">
+              Start parking.
+            </span>
           </h1>
 
-          <p className="mt-3 hidden max-w-2xl text-sm leading-relaxed text-brand-100 sm:block sm:text-base">
+          <p className="mt-4 hidden max-w-xl text-sm leading-relaxed text-brand-100 sm:block sm:text-lg">
             Reserve a real space near where you are going in {PILOT_CITY.name}, at a price you know
-            before you leave. No circling Koregaon Park, no bargaining at the gate.
+            before you leave — then drive straight in with a pass on your phone.
           </p>
         </div>
       </section>
