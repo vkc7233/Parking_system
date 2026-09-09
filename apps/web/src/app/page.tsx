@@ -157,13 +157,16 @@ export default async function HomePage({
       <SiteHeader />
 
       {/*
-        * The search card overlaps the bottom of the dark panel rather than sitting under it.
-        * That overlap is doing real work: it makes the field the one element in front of
-        * everything else, so on a page that also offers eight areas and three filters there is
-        * no question what to do first.
+        * The search card sits wholly inside the dark panel.
+        *
+        * It used to straddle the boundary, pulled up by a negative margin so it overlapped the
+        * seam. The intent was to push the field in front of everything else, but the seam landed
+        * between the input row and the area chips - so the card read as two halves on two
+        * different backgrounds rather than as one control. Depth is worth having; a join running
+        * through the middle of the most important element on the page is not.
         */}
-      <section className="hero-surface relative">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-20 sm:pt-14 sm:pb-28">
+      <section className="hero-surface">
+        <div className="mx-auto max-w-7xl px-4 pt-6 pb-8 sm:px-6 sm:pt-14 sm:pb-12 lg:px-8">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-brand-100 ring-1 ring-inset ring-white/15 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-accent-400" aria-hidden="true" />
             Now live in {PILOT_CITY.name}, {PILOT_CITY.state}
@@ -188,12 +191,8 @@ export default async function HomePage({
             Reserve a real space near where you are going in {PILOT_CITY.name}, at a price you know
             before you leave — then drive straight in with a pass on your phone.
           </p>
-        </div>
-      </section>
 
-      <div className="relative z-10 -mt-16 sm:-mt-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-lift sm:p-4">
+          <div className="mt-6 rounded-2xl bg-white p-3 shadow-lift ring-1 ring-white/10 sm:mt-8 sm:p-4">
             <SearchBar
               initialWhere={slug ? label : (params.where ?? '')}
               initialStart={params.start ?? ''}
@@ -205,7 +204,7 @@ export default async function HomePage({
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {results === null ? (
