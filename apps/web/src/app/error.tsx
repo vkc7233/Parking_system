@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { reportClientError } from './report-error';
 
 /**
  * Last-resort error boundary.
@@ -10,8 +11,9 @@ import { useEffect } from 'react';
  * paths, and internal function names — to whoever happened to be on the page. That is a poor
  * experience and, in production, an information leak.
  *
- * Errors are logged rather than shown. Once Sentry is wired in (spec §9.10), this is where the
- * report goes.
+ * Errors are reported rather than shown. `onRequestError` catches everything that fails on the
+ * server; a component that throws while hydrating fails only in the browser, so without the call
+ * below half of §7.4's "application errors" would reach nothing.
  */
 export default function GlobalError({
   error,
@@ -22,6 +24,15 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error('[unhandled]', error);
+
+    // Reporting must never be able to re-throw inside an error boundary: that replaces this
+    // screen with React's own, which is the thing this component exists to prevent.
+    void reportClientError({
+      message: error.message,
+      ...(error.stack ? { stack: error.stack } : {}),
+      ...(error.digest ? { digest: error.digest } : {}),
+      path: window.location.pathname,
+    }).catch(() => {});
   }, [error]);
 
   return (

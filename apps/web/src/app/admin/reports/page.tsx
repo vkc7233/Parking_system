@@ -1,7 +1,7 @@
 import { formatPaise } from '@parking/core';
 import { Card, CardBody, CardHeader } from '@parking/ui';
 import { requireAdmin } from '@/lib/auth';
-import { fetchReportBookings, resolveRange, summarise, toDateInput } from './report';
+import { fetchReportTotals, resolveRange, toDateInput } from './report';
 import { RangePicker } from './range-picker';
 
 export const metadata = { title: 'Reports' };
@@ -26,7 +26,7 @@ export default async function AdminReportsPage({
 
   let totals;
   try {
-    totals = summarise(await fetchReportBookings(range));
+    totals = await fetchReportTotals(range);
   } catch (error) {
     console.error('[reports] summary failed', error);
     totals = null;

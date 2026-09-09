@@ -2,6 +2,7 @@ import { DISPUTE, PAYOUT } from '@parking/config';
 import {
   formatPaise,
   isPayoutEligible,
+  payableAmount,
   payoutIneligibleReason,
   summarisePayout,
   type PayoutCandidate,
@@ -19,6 +20,7 @@ interface EarningRow {
   end_time: string;
   completed_at: string | null;
   host_payout: number;
+  refund_amount: number | null;
   listings: { title: string } | null;
   /**
    * PostgREST decides the shape of an embed from the constraint behind it. `disputes.booking_id`
@@ -65,7 +67,7 @@ export default async function EarningsPage() {
   const { data: bookingRows } = await supabase
     .from('bookings')
     .select(
-      'id, reference, status, end_time, completed_at, host_payout, listings(title), disputes(status), payout_bookings(payout_id)',
+      'id, reference, status, end_time, completed_at, host_payout, refund_amount, listings(title), disputes(status), payout_bookings(payout_id)',
     )
     .eq('host_id', profile.id)
     .in('status', ['confirmed', 'completed'])
@@ -79,15 +81,12 @@ export default async function EarningsPage() {
     endTime: new Date(b.end_time),
     completedAt: b.completed_at ? new Date(b.completed_at) : null,
     hostPayout: Number(b.host_payout),
+    refundAmount: Number(b.refund_amount ?? 0),
     hasOpenDispute: (b.disputes ?? []).some((d) => d.status === 'open'),
     alreadyPaidOut: embedCount(b.payout_bookings) > 0,
   }));
 
   const summary = summarisePayout(candidates);
-
-  const paidOut = bookings
-    .filter((b) => embedCount(b.payout_bookings) > 0)
-    .reduce((sum, b) => sum + Number(b.host_payout), 0);
 
   const { data: payoutRows } = await supabase
     .from('payouts')
@@ -98,6 +97,18 @@ export default async function EarningsPage() {
     .order('created_at', { ascending: false });
 
   const payouts = (payoutRows ?? []) as unknown as PayoutRow[];
+
+  /*
+   * Summed from payouts that actually succeeded, not from bookings attached to one.
+   *
+   * A failed transfer keeps its line items attached deliberately, so the money is not silently
+   * re-queued into another payout while the failure is unresolved. Counting those as "paid out"
+   * told the host their money had been sent when it had not - the single worst thing this screen
+   * could get wrong.
+   */
+  const paidOut = payouts
+    .filter((p) => p.status === 'paid')
+    .reduce((sum, p) => sum + Number(p.amount), 0);
 
   const tiles = [
     {
@@ -117,7 +128,7 @@ export default async function EarningsPage() {
     {
       label: 'Paid out so far',
       value: paidOut,
-      hint: 'Across all completed payouts.',
+      hint: 'Transfers that actually completed.',
     },
   ];
 
@@ -190,9 +201,11 @@ export default async function EarningsPage() {
                   ? ({ label: 'Paid out', tone: 'neutral' } as const)
                   : reason === 'dispute_open'
                     ? ({ label: 'Disputed', tone: 'danger' } as const)
-                    : reason === 'not_completed'
-                      ? ({ label: 'In progress', tone: 'info' } as const)
-                      : ({ label: 'Held', tone: 'warning' } as const);
+                    : reason === 'refunded'
+                      ? ({ label: 'Refunded', tone: 'neutral' } as const)
+                      : reason === 'not_completed'
+                        ? ({ label: 'In progress', tone: 'info' } as const)
+                        : ({ label: 'Held', tone: 'warning' } as const);
 
               return (
                 <li
@@ -216,7 +229,7 @@ export default async function EarningsPage() {
                   <div className="flex items-center gap-3">
                     <Badge tone={state.tone}>{state.label}</Badge>
                     <span className="text-sm font-medium tabular-nums text-slate-900">
-                      <Money paise={Number(booking.host_payout)} />
+                      <Money paise={payableAmount(candidate)} />
                     </span>
                   </div>
                 </li>

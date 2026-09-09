@@ -97,11 +97,18 @@ export default async function BookingDetailPage({
         })
       : null;
 
-  const { data: existingDispute } = await service
+  // Ordered and limited rather than `.maybeSingle()`, which throws the moment a booking has more
+  // than one dispute — and it can: nothing stops a seeker raising a second one after the first
+  // was resolved, and `disputes.booking_id` is deliberately not unique for exactly that reason.
+  // The most recent one is the one that describes where the booking stands now.
+  const { data: disputeRows } = await service
     .from('disputes')
     .select('status, reason')
     .eq('booking_id', booking.id)
-    .maybeSingle();
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  const existingDispute = disputeRows?.[0] ?? null;
 
   // A11: the window a seeker has to report a problem, and the same window the host's earnings
   // are held for.

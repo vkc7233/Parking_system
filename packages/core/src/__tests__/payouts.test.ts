@@ -4,6 +4,7 @@ import {
   isPayoutEligible,
   isWithinDisputeWindow,
   nextPayoutRun,
+  payableAmount,
   payoutIneligibleReason,
   summarisePayout,
   type PayoutCandidate,
@@ -20,6 +21,7 @@ function candidate(overrides: Partial<PayoutCandidate> = {}): PayoutCandidate {
     endTime: END,
     completedAt: END,
     hostPayout: rupeesToPaise(120),
+    refundAmount: 0,
     hasOpenDispute: false,
     alreadyPaidOut: false,
     ...overrides,
@@ -178,5 +180,64 @@ describe('checkout holds (A10)', () => {
     const expires = holdExpiresAt(created);
     expect(holdSecondsRemaining(expires, created)).toBe(600);
     expect(holdSecondsRemaining(expires, new Date('2026-09-05T10:20:00Z'))).toBe(0);
+  });
+});
+
+describe('refunds (spec 7.2: earnings match completed, NON-REFUNDED bookings)', () => {
+  const past = hoursAfterEnd(72);
+
+  it('pays nothing on a booking refunded in full', () => {
+    // The bug this guards: resolving a dispute in the seeker's favour refunds the money and
+    // leaves the booking `completed`, so it became payable again. The platform refunded the
+    // seeker and paid the host for the same stay.
+    const refunded = candidate({ hostPayout: rupeesToPaise(600), refundAmount: rupeesToPaise(690) });
+
+    expect(payableAmount(refunded)).toBe(0);
+    expect(isPayoutEligible(refunded, past)).toBe(false);
+    expect(payoutIneligibleReason(refunded, past)).toBe('refunded');
+  });
+
+  it('reduces the host share by a partial refund rather than dropping it', () => {
+    const partial = candidate({ hostPayout: rupeesToPaise(600), refundAmount: rupeesToPaise(100) });
+
+    expect(payableAmount(partial)).toBe(rupeesToPaise(500));
+    expect(isPayoutEligible(partial, past)).toBe(true);
+  });
+
+  it('never returns a negative amount when the refund exceeds the host share', () => {
+    // The refund covers the service fee too, so it is routinely larger than host_payout.
+    const over = candidate({ hostPayout: rupeesToPaise(600), refundAmount: rupeesToPaise(690) });
+
+    expect(payableAmount(over)).toBe(0);
+  });
+
+  it('keeps a refunded booking out of both the eligible and the held totals', () => {
+    // Counting it as "held" would promise a host money that is never coming.
+    const summary = summarisePayout(
+      [
+        candidate({ bookingId: 'paid', hostPayout: rupeesToPaise(600) }),
+        candidate({
+          bookingId: 'refunded',
+          hostPayout: rupeesToPaise(600),
+          refundAmount: rupeesToPaise(690),
+        }),
+      ],
+      past,
+    );
+
+    expect(summary.eligibleAmount).toBe(rupeesToPaise(600));
+    expect(summary.eligibleCount).toBe(1);
+    expect(summary.pendingAmount).toBe(0);
+  });
+
+  it('reports the dispute window, not the refund, while both apply', () => {
+    // The window changes on its own; the refund does not. Reporting the one that will resolve
+    // itself is the more useful answer to "why is this not paid yet".
+    const both = candidate({
+      hostPayout: rupeesToPaise(600),
+      refundAmount: rupeesToPaise(690),
+    });
+
+    expect(payoutIneligibleReason(both, hoursAfterEnd(1))).toBe('dispute_window_open');
   });
 });

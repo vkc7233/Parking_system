@@ -85,20 +85,31 @@ export interface ReportBooking {
 export async function fetchReportBookings(range: ReportRange): Promise<ReportBooking[]> {
   const service = createServiceClient();
 
-  const { data, error } = await service
-    .from('bookings')
-    .select(
-      'reference, status, start_time, end_time, service_fee, total, host_payout, refund_amount, checked_in_at, ' +
-        'listings(title, locality), host:users!bookings_host_id_fkey(name), seeker:users!bookings_seeker_id_fkey(name)',
-    )
-    .in('status', REVENUE_STATUSES)
-    .gte('start_time', range.from.toISOString())
-    .lte('start_time', range.to.toISOString())
-    .order('start_time');
+  // Paged, because PostgREST truncates at `max_rows` without saying so. An export that quietly
+  // stops at a thousand rows is worse than one that fails: it looks complete.
+  const PAGE = 1_000;
+  const all: ReportBooking[] = [];
 
-  if (error) throw new Error(`Report query failed: ${error.message}`);
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await service
+      .from('bookings')
+      .select(
+        'reference, status, start_time, end_time, service_fee, total, host_payout, refund_amount, checked_in_at, ' +
+          'listings(title, locality), host:users!bookings_host_id_fkey(name), seeker:users!bookings_seeker_id_fkey(name)',
+      )
+      .in('status', REVENUE_STATUSES)
+      .gte('start_time', range.from.toISOString())
+      .lte('start_time', range.to.toISOString())
+      .order('start_time')
+      .range(offset, offset + PAGE - 1);
 
-  return (data ?? []) as unknown as ReportBooking[];
+    if (error) throw new Error(`Report query failed: ${error.message}`);
+
+    const page = (data ?? []) as unknown as ReportBooking[];
+    all.push(...page);
+
+    if (page.length < PAGE) return all;
+  }
 }
 
 export interface ReportTotals {
@@ -110,14 +121,32 @@ export interface ReportTotals {
   scanned: number;
 }
 
-/** The figures shown on screen and, necessarily, the ones the CSV columns add up to. */
-export function summarise(bookings: ReportBooking[]): ReportTotals {
+/**
+ * The figures shown on screen and, necessarily, the ones the CSV columns add up to.
+ *
+ * Aggregated in the database rather than by summing the fetched rows. PostgREST caps a read at
+ * `max_rows`, so summing rows would silently under-report the moment a period held more bookings
+ * than that cap — and §12 sizes the pilot at 5,000 bookings a month.
+ */
+export async function fetchReportTotals(range: ReportRange): Promise<ReportTotals> {
+  const service = createServiceClient();
+
+  const { data, error } = await service.rpc('report_totals', {
+    p_from: range.from.toISOString(),
+    p_to: range.to.toISOString(),
+    p_statuses: [...REVENUE_STATUSES],
+  });
+
+  if (error) throw new Error(`Report totals failed: ${error.message}`);
+
+  const row = (data as ReportTotals[] | null)?.[0];
+
   return {
-    bookings: bookings.length,
-    gross: bookings.reduce((sum, b) => sum + Number(b.total), 0),
-    fees: bookings.reduce((sum, b) => sum + Number(b.service_fee), 0),
-    payouts: bookings.reduce((sum, b) => sum + Number(b.host_payout), 0),
-    refunded: bookings.reduce((sum, b) => sum + Number(b.refund_amount ?? 0), 0),
-    scanned: bookings.filter((b) => b.checked_in_at).length,
+    bookings: Number(row?.bookings ?? 0),
+    gross: Number(row?.gross ?? 0),
+    fees: Number(row?.fees ?? 0),
+    payouts: Number(row?.payouts ?? 0),
+    refunded: Number(row?.refunded ?? 0),
+    scanned: Number(row?.scanned ?? 0),
   };
 }

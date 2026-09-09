@@ -1,9 +1,11 @@
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Card, CardBody, CardHeader, Money } from '@parking/ui';
 import { requireProfile } from '@/lib/auth';
 import { getServerEnv } from '@/lib/env';
 import { createServiceClient } from '@/lib/supabase/service';
 import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
 import { CheckoutPanel } from './checkout-panel';
 
 export const metadata = { title: 'Checkout' };
@@ -60,7 +62,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
     <div className="min-h-dvh bg-slate-50">
       <SiteHeader />
 
-      <main className="mx-auto max-w-lg px-4 py-8">
+      <main className="mx-auto max-w-lg px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Confirm and pay</h1>
         <p className="mt-1 text-slate-600">
           Your space is held while you complete payment. Nothing is charged until you do.
@@ -117,8 +119,45 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
           </CardBody>
         </Card>
 
+        {/*
+          * §7.4 requires the three legal pages to be "linked from checkout and footer". They
+          * were on the footer and on the booking form, but not here — the one screen where
+          * money actually changes hands, and the exact moment someone wants to re-read what
+          * happens if they cancel. They open in a new tab so a seeker checking the refund rules
+          * does not lose a slot that is held for ten minutes.
+          */}
+        <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
+          By paying you accept our{' '}
+          <Link
+            href="/legal/terms"
+            target="_blank"
+            className="font-medium text-brand-600 hover:underline"
+          >
+            Terms
+          </Link>
+          ,{' '}
+          <Link
+            href="/legal/cancellation"
+            target="_blank"
+            className="font-medium text-brand-600 hover:underline"
+          >
+            Cancellation &amp; Refund Policy
+          </Link>{' '}
+          and{' '}
+          <Link
+            href="/legal/privacy"
+            target="_blank"
+            className="font-medium text-brand-600 hover:underline"
+          >
+            Privacy Policy
+          </Link>
+          . Opening any of these keeps this page open, so your slot stays held.
+        </p>
+
         <p className="mt-4 text-center font-mono text-xs text-slate-400">Ref {booking.reference}</p>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

@@ -44,9 +44,12 @@ function startOfDay(date: Date): Date {
 export default async function HostCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ listing?: string }>;
+  searchParams: Promise<{ listing?: string; view?: string }>;
 }) {
   const params = await searchParams;
+  // §7.2 asks for "upcoming and past bookings". Forward is the default because a host opens this
+  // to find out who is coming; the past view is what they reach for when reconciling a payout.
+  const showingPast = params.view === 'past';
   const profile = await requireHost('/host/calendar');
   const supabase = await createClient();
 
@@ -59,8 +62,9 @@ export default async function HostCalendarPage({
   const listings = (listingRows ?? []) as { id: string; title: string }[];
   const selected = listings.find((l) => l.id === params.listing) ?? null;
 
-  const from = startOfDay(new Date());
-  const to = new Date(from.getTime() + DAYS_SHOWN * DAY_MS);
+  const today = startOfDay(new Date());
+  const from = showingPast ? new Date(today.getTime() - DAYS_SHOWN * DAY_MS) : today;
+  const to = showingPast ? today : new Date(today.getTime() + DAYS_SHOWN * DAY_MS);
 
   let query = supabase
     .from('bookings')
@@ -87,7 +91,10 @@ export default async function HostCalendarPage({
   }
 
   const days = Array.from({ length: DAYS_SHOWN }, (_, i) => {
-    const date = new Date(from.getTime() + i * DAY_MS);
+    // The past view reads newest first: what happened yesterday matters more than what happened
+    // four weeks ago.
+    const offset = showingPast ? DAYS_SHOWN - 1 - i : i;
+    const date = new Date(from.getTime() + offset * DAY_MS);
     return { date, bookings: byDay.get(startOfDay(date).toISOString()) ?? [] };
   });
 
@@ -98,11 +105,35 @@ export default async function HostCalendarPage({
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Bookings calendar</h1>
         <p className="mt-1 text-slate-600">
-          The next four weeks. {bookings.length} booking{bookings.length === 1 ? '' : 's'}
-          {bookings.length > 0 ? ` · ${formatPaise(expected)} to you` : ''}
+          {showingPast ? 'The last four weeks.' : 'The next four weeks.'} {bookings.length} booking
+          {bookings.length === 1 ? '' : 's'}
+          {bookings.length > 0
+            ? ` · ${formatPaise(expected)} ${showingPast ? 'earned' : 'to you'}`
+            : ''}
           {selected ? ` · ${selected.title}` : ''}.
         </p>
       </header>
+
+      <nav aria-label="Time range" className="flex gap-2">
+        {[
+          { href: '/host/calendar', label: 'Next 4 weeks', active: !showingPast },
+          { href: '/host/calendar?view=past', label: 'Past 4 weeks', active: showingPast },
+        ].map((tab) => (
+          <Link
+            key={tab.href}
+            href={selected ? `${tab.href}${tab.href.includes('?') ? '&' : '?'}listing=${selected.id}` : tab.href}
+            aria-current={tab.active ? 'page' : undefined}
+            className={
+              'rounded-full border px-3 py-1.5 text-sm font-medium transition ' +
+              (tab.active
+                ? 'border-slate-900 bg-slate-900 text-white'
+                : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400')
+            }
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
 
       {listings.length > 1 ? (
         <nav aria-label="Filter by listing" className="no-scrollbar flex gap-2 overflow-x-auto">
@@ -147,7 +178,7 @@ export default async function HostCalendarPage({
 
         {bookings.length === 0 ? (
           <EmptyState
-            title="Nothing booked in the next four weeks"
+            title={showingPast ? 'Nothing in the last four weeks' : 'Nothing booked in the next four weeks'}
             description={
               listings.length === 0
                 ? 'Once you list a space and it goes live, bookings appear here.'

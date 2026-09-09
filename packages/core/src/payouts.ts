@@ -17,14 +17,31 @@ export interface PayoutCandidate {
   status: string;
   endTime: Date;
   completedAt: Date | null;
-  /** What the Host is owed, in paise. */
+  /** What the Host is owed before any refund, in paise. */
   hostPayout: Paise;
+  /**
+   * What was refunded to the Seeker, in paise.
+   *
+   * Netted off the host share rather than split with the platform fee - see the note on
+   * `unpaid_host_earnings`, whose arithmetic this must match exactly. If these two disagree, a
+   * host reads one number on their Earnings screen and is paid another.
+   */
+  refundAmount: Paise;
   hasOpenDispute: boolean;
   alreadyPaidOut: boolean;
 }
 
+/** What a booking is actually worth to the Host once any refund is taken off. */
+export function payableAmount(candidate: PayoutCandidate): Paise {
+  return Math.max(candidate.hostPayout - candidate.refundAmount, 0);
+}
+
 export type IneligibleReason =
-  'not_completed' | 'dispute_window_open' | 'dispute_open' | 'already_paid_out';
+  | 'not_completed'
+  | 'dispute_window_open'
+  | 'dispute_open'
+  | 'already_paid_out'
+  | 'refunded';
 
 /** When the Seeker's window to raise a dispute closes, and the Host becomes payable (A11). */
 export function disputeWindowClosesAt(bookingEndTime: Date): Date {
@@ -49,6 +66,10 @@ export function payoutIneligibleReason(
   if (candidate.status !== 'completed') return 'not_completed';
   if (candidate.hasOpenDispute) return 'dispute_open';
   if (isWithinDisputeWindow(candidate.endTime, now)) return 'dispute_window_open';
+  // A booking refunded down to nothing is not earnings. Checked last, so a booking that is both
+  // refunded and still inside its dispute window reports the window - the reason that will
+  // change on its own.
+  if (payableAmount(candidate) <= 0) return 'refunded';
   return null;
 }
 
@@ -92,7 +113,7 @@ export function summarisePayout(
     if (candidate.alreadyPaidOut) continue;
 
     if (isPayoutEligible(candidate, now)) {
-      eligibleAmount += candidate.hostPayout;
+      eligibleAmount += payableAmount(candidate);
       eligibleCount += 1;
 
       const settledAt = candidate.completedAt ?? candidate.endTime;
@@ -102,8 +123,12 @@ export function summarisePayout(
     } else if (candidate.status !== 'completed' && candidate.status !== 'confirmed') {
       // Cancelled or failed bookings are not earnings at all.
       continue;
+    } else if (payableAmount(candidate) <= 0) {
+      // Refunded to nothing. Not eligible, but not "held" either - showing it as pending would
+      // promise a host money that is never coming.
+      continue;
     } else {
-      pendingAmount += candidate.hostPayout;
+      pendingAmount += payableAmount(candidate);
       pendingCount += 1;
     }
   }

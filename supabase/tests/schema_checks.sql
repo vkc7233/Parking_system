@@ -716,6 +716,189 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Regressions found by auditing the build against the spec (2026-09-09)
+--
+-- Every one of these was a Must-feature failure that nothing detected: the application kept
+-- working and simply did the wrong thing. They are checked here so they cannot come back.
+-- ---------------------------------------------------------------------------
+
+-- These run after the suspension and auto-pause checks above, which deliberately suspend Meena
+-- and delist her listings. Undo that first: a check that only passes depending on what ran
+-- before it is not a check, and the ordering is not obvious from reading any one of them.
+update public.users
+   set suspended_at = null, suspended_reason = null
+ where id in ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003');
+
+update public.listings
+   set status = 'live', approved_by = '00000000-0000-4000-8000-000000000001'
+ where id in ('10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002');
+
+-- Host listing management. `listings_update_own` used to require `approved_by is null`, so from
+-- the moment a listing was approved its owner could not pause it or change its price - which is
+-- the whole of the "pausing removes it from search" criterion, and of A14.
+do $$
+declare
+  v_paused boolean := false;
+  v_repriced boolean := false;
+  v_published boolean := false;
+begin
+  update public.listings set status = 'live', approved_by = '00000000-0000-4000-8000-000000000001'
+   where id = '10000000-0000-4000-8000-000000000001';
+
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000002","role":"authenticated"}';
+
+  begin
+    update public.listings set status = 'paused' where id = '10000000-0000-4000-8000-000000000001';
+    v_paused := found;
+  exception when others then v_paused := false;
+  end;
+
+  begin
+    update public.listings set price_per_hour = 5500 where id = '10000000-0000-4000-8000-000000000001';
+    v_repriced := found;
+  exception when others then v_repriced := false;
+  end;
+
+  begin
+    update public.listings set status = 'live' where id = '10000000-0000-4000-8000-000000000001';
+    v_published := found;
+  exception when others then v_published := false;
+  end;
+
+  reset role;
+
+  perform pg_temp.record('spec 7.2: a host can pause their own live listing', v_paused, 'blocked by RLS');
+  perform pg_temp.record('A14: a host can reprice a live listing without re-approval', v_repriced, 'blocked by RLS');
+  perform pg_temp.record('spec 7.2: a host cannot publish their own listing', not v_published, 'host self-published');
+end;
+$$;
+
+-- Refunds must leave the host's earnings. Resolving a dispute in the seeker's favour refunds the
+-- money and leaves the booking `completed`, which used to make it payable again - the platform
+-- refunded the seeker and paid the host for the same stay.
+do $$
+declare
+  v_payable bigint;
+begin
+  -- The pause check above left this listing paused, and hours are asserted by the block below.
+  -- Restore both explicitly rather than relying on the order these blocks happen to run in.
+  update public.listings
+     set status = 'live', available_from = null, available_until = null
+   where id = '10000000-0000-4000-8000-000000000001';
+
+  insert into public.bookings (id, listing_id, seeker_id, host_id, start_time, end_time,
+    subtotal, service_fee, total, host_payout, status)
+  values ('cc000000-0000-4000-8000-0000000000f1', '10000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002',
+    now() - interval '5 days 3 hours', now() - interval '5 days',
+    60000, 9000, 69000, 60000, 'pending_payment');
+
+  update public.bookings set status = 'confirmed' where id = 'cc000000-0000-4000-8000-0000000000f1';
+  update public.bookings set status = 'completed' where id = 'cc000000-0000-4000-8000-0000000000f1';
+
+  select coalesce(sum(amount), 0) into v_payable
+    from public.unpaid_host_earnings('00000000-0000-4000-8000-000000000002', '-infinity', 'infinity')
+   where booking_id = 'cc000000-0000-4000-8000-0000000000f1';
+
+  perform pg_temp.record('spec 7.2: an unrefunded completed booking is payable',
+    v_payable = 60000, v_payable::text);
+
+  update public.bookings set refund_amount = 69000 where id = 'cc000000-0000-4000-8000-0000000000f1';
+
+  select coalesce(sum(amount), 0) into v_payable
+    from public.unpaid_host_earnings('00000000-0000-4000-8000-000000000002', '-infinity', 'infinity')
+   where booking_id = 'cc000000-0000-4000-8000-0000000000f1';
+
+  perform pg_temp.record('spec 7.2: a REFUNDED booking is not paid to the host',
+    v_payable = 0, v_payable::text || ' paise still payable');
+
+  update public.bookings set refund_amount = 10000 where id = 'cc000000-0000-4000-8000-0000000000f1';
+
+  select coalesce(sum(amount), 0) into v_payable
+    from public.unpaid_host_earnings('00000000-0000-4000-8000-000000000002', '-infinity', 'infinity')
+   where booking_id = 'cc000000-0000-4000-8000-0000000000f1';
+
+  perform pg_temp.record('spec 7.2: a partial refund reduces the host share',
+    v_payable = 50000, v_payable::text);
+
+  delete from public.bookings where id = 'cc000000-0000-4000-8000-0000000000f1';
+end;
+$$;
+
+-- The host's published hours. They were stored, displayed, and read by nothing: a 2am booking
+-- was accepted on a listing open 07:00-23:30, so a driver could arrive at a locked gate holding
+-- a pass this platform signed.
+do $$
+declare
+  v_out_of_hours boolean := false;
+  v_in_hours boolean := false;
+  v_all_day boolean := false;
+begin
+  update public.listings set status = 'live', available_from = '07:00', available_until = '23:30'
+   where id = '10000000-0000-4000-8000-000000000001';
+
+  begin
+    insert into public.bookings (id, listing_id, seeker_id, host_id, start_time, end_time,
+      subtotal, service_fee, total, host_payout, status)
+    values ('cc000000-0000-4000-8000-0000000000f2', '10000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002',
+      ('2026-12-01 02:00'::timestamp) at time zone 'Asia/Kolkata',
+      ('2026-12-01 04:00'::timestamp) at time zone 'Asia/Kolkata',
+      10000, 1500, 11500, 10000, 'pending_payment');
+    v_out_of_hours := true;
+  exception when others then v_out_of_hours := false;
+  end;
+
+  begin
+    insert into public.bookings (id, listing_id, seeker_id, host_id, start_time, end_time,
+      subtotal, service_fee, total, host_payout, status)
+    values ('cc000000-0000-4000-8000-0000000000f3', '10000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002',
+      ('2026-12-02 09:00'::timestamp) at time zone 'Asia/Kolkata',
+      ('2026-12-02 11:00'::timestamp) at time zone 'Asia/Kolkata',
+      10000, 1500, 11500, 10000, 'pending_payment');
+    v_in_hours := true;
+  exception when others then v_in_hours := false;
+  end;
+
+  -- A listing with no hours set is open around the clock and must stay bookable at 2am.
+  begin
+    insert into public.bookings (id, listing_id, seeker_id, host_id, start_time, end_time,
+      subtotal, service_fee, total, host_payout, status)
+    values ('cc000000-0000-4000-8000-0000000000f4', '10000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002',
+      ('2026-12-03 02:00'::timestamp) at time zone 'Asia/Kolkata',
+      ('2026-12-03 04:00'::timestamp) at time zone 'Asia/Kolkata',
+      10000, 1500, 11500, 10000, 'pending_payment');
+    v_all_day := true;
+  exception when others then v_all_day := false;
+  end;
+
+  perform pg_temp.record('spec 7.2: a booking outside the host hours is refused',
+    not v_out_of_hours, 'accepted a 02:00 booking on an 07:00-23:30 listing');
+  perform pg_temp.record('spec 7.2: a booking inside the host hours is accepted', v_in_hours, 'refused');
+  perform pg_temp.record('spec 7.2: a listing with no hours is bookable around the clock',
+    v_all_day, 'refused on a 24h listing');
+
+  delete from public.bookings where id in (
+    'cc000000-0000-4000-8000-0000000000f2',
+    'cc000000-0000-4000-8000-0000000000f3',
+    'cc000000-0000-4000-8000-0000000000f4');
+end;
+$$;
+
+-- The lifecycle sweeps were written and never scheduled, so nothing ever reached `completed` -
+-- and therefore no review ever opened and no host was ever paid.
+select pg_temp.record('spec 7.1: the booking completion sweep is scheduled',
+  (select count(*) = 1 from cron.job where jobname = 'complete-elapsed-bookings' and active),
+  'complete_elapsed_bookings is not scheduled');
+
+select pg_temp.record('A10: the unpaid-hold expiry sweep is scheduled',
+  (select count(*) = 1 from cron.job where jobname = 'expire-unpaid-bookings' and active),
+  'expire_unpaid_bookings is not scheduled');
+
+-- ---------------------------------------------------------------------------
 -- Results
 -- ---------------------------------------------------------------------------
 

@@ -37,11 +37,21 @@ export default async function AdminDashboardPage() {
       .select('id', { count: 'exact', head: true })
       .eq('verified_status', 'pending'),
     supabase.from('bookings').select('id', { count: 'exact', head: true }),
-    supabase.from('bookings').select('total').eq('status', 'completed'),
+    // Aggregated in the database rather than by summing fetched rows: PostgREST caps a read at
+    // `max_rows` (1000), so `select('total')` would have silently under-reported GMV the moment
+    // the marketplace passed a thousand completed bookings. Same function the Reports screen
+    // uses, so the two can no longer disagree about the same money.
+    supabase.rpc('report_totals', {
+      p_from: '-infinity',
+      p_to: 'infinity',
+      p_statuses: ['completed'],
+    }),
     supabase.from('disputes').select('id', { count: 'exact', head: true }).eq('status', 'open'),
   ]);
 
-  const gmv = (completed.data ?? []).reduce((sum, b) => sum + Number(b.total), 0);
+  const gmv = Number(
+    (completed.data as { gross: number }[] | null)?.[0]?.gross ?? 0,
+  );
 
   const stats = [
     { label: 'Users', value: String(users.count ?? 0), href: '/admin/users' },
@@ -101,7 +111,7 @@ export default async function AdminDashboardPage() {
             <Money paise={gmv} showDecimals={false} />
           </dd>
           <p className="mt-1 text-xs text-slate-500">
-            Total value of completed bookings, before fees.
+            Total value of completed bookings, all time, before fees.
           </p>
         </div>
       </section>
