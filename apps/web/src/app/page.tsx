@@ -163,7 +163,7 @@ export default async function HomePage({
         * no question what to do first.
         */}
       <section className="hero-surface relative">
-        <div className="mx-auto max-w-6xl px-4 pt-6 pb-20 sm:pt-14 sm:pb-28">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-6 pb-20 sm:pt-14 sm:pb-28">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-brand-100 ring-1 ring-inset ring-white/15 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-accent-400" aria-hidden="true" />
             Now live in {PILOT_CITY.name}, {PILOT_CITY.state}
@@ -181,7 +181,7 @@ export default async function HomePage({
       </section>
 
       <div className="relative z-10 -mt-16 sm:-mt-20">
-        <div className="mx-auto max-w-6xl px-4">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-lift sm:p-4">
             <SearchBar
               initialWhere={slug ? label : (params.where ?? '')}
@@ -196,7 +196,7 @@ export default async function HomePage({
         </div>
       </div>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
         {results === null ? (
           <ServiceUnavailable what="Search" />
         ) : (
@@ -247,8 +247,15 @@ export default async function HomePage({
                 />
               </Card>
             ) : (
-              <div className="mt-5 gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-                <ul className="grid gap-4 sm:grid-cols-2">
+              <div className="mt-5 gap-6 md:grid md:grid-cols-[minmax(0,1fr)_290px] md:items-start xl:grid-cols-[minmax(0,1fr)_340px]">
+                {/*
+                  Sized by the card, not by the breakpoint. `sm:grid-cols-2` gave every card
+                  half the viewport — 480px wide with a 358px photo on a 1007px screen — so two
+                  listings filled the entire fold and the page read as three enormous empty
+                  panels. auto-fill keeps a card between about 230 and 300px at every width, and
+                  simply fits more of them in as the screen grows.
+                */}
+                <ul className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))]">
                   {results.map((listing) => (
                     <li key={listing.id}>
                       <Link
@@ -331,7 +338,7 @@ export default async function HomePage({
                   ))}
                 </ul>
 
-                <div className="mt-4 lg:sticky lg:top-4 lg:mt-0">
+                <div className="mt-4 md:sticky md:top-20 md:mt-0">
                   <ResultMap results={results} center={center} centerLabel={label} />
                 </div>
               </div>

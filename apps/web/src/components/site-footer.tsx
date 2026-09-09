@@ -8,7 +8,7 @@ import { PILOT_CITY } from '@parking/config';
 export function SiteFooter() {
   return (
     <footer className="mt-12 border-t border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-6 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 sm:px-6 lg:px-8 py-6 text-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-slate-500">
           Parking Marketplace · {PILOT_CITY.name}, {PILOT_CITY.state}
         </p>

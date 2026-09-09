@@ -81,7 +81,7 @@ export function ResultMap({
   return (
     // Capped rather than fluid: the plot is drawn in a fixed 320-unit square, so letting it fill
     // a wide column scales the compass and scale labels up with it and the map starts shouting.
-    <div className="relative mx-auto max-w-sm overflow-hidden rounded-xl border border-slate-200 bg-slate-100 lg:max-w-none">
+    <div className="relative mx-auto max-w-sm overflow-hidden rounded-xl border border-slate-200 bg-slate-100 md:max-w-none">
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className="block w-full"

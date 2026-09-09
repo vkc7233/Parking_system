@@ -50,7 +50,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-dvh bg-slate-100">
       <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-900">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-6 lg:px-8 py-3">
           <Link
             href="/admin"
             className="flex items-center gap-2 text-sm font-semibold tracking-tight text-white"
@@ -71,7 +71,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">{children}</main>
     </div>
   );
 }

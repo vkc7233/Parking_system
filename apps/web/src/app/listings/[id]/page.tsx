@@ -115,7 +115,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     <div className="min-h-dvh bg-slate-50">
       <SiteHeader />
 
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
         <Link href="/" className="text-sm text-slate-600 underline underline-offset-4">
           Back to search
         </Link>
@@ -137,27 +137,46 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
           </p>
         </header>
 
+        {/*
+          * Fixed height rather than an aspect ratio. Driving the gallery off `aspect-4/3` made
+          * the lead photo 635x476 on a 1007px screen, which pushed the price, the rules and the
+          * booking form entirely below the fold — on the screen whose whole job is to get
+          * someone to book. A gallery should be a band across the top, not a page of its own.
+          *
+          * The column count follows the number of photos, because a three-column grid holding
+          * two photos leaves a visible hole where the third would be, and most new Pune
+          * listings will have one or two.
+          */}
         {photos.length > 0 ? (
-          <ul className="mt-5 grid gap-3 sm:grid-cols-3">
+          <ul
+            className={
+              'mt-5 grid h-56 gap-3 sm:h-72 lg:h-80 ' +
+              (photos.length === 1
+                ? 'grid-cols-1'
+                : photos.length === 2
+                  ? 'grid-cols-2'
+                  : 'grid-cols-2 sm:grid-cols-3')
+            }
+          >
             {photos.slice(0, 3).map((photo, i) => (
               <li
                 key={photo.id}
                 className={
-                  'relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ' +
-                  (i === 0 ? 'sm:col-span-2 sm:row-span-2 aspect-4/3' : 'aspect-4/3')
+                  'relative h-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ' +
+                  (photos.length > 2 && i === 0 ? 'col-span-2 sm:col-span-1 lg:col-span-1' : '')
                 }
               >
                 <ListingPhoto
                   src={photoUrl(photo.storage_path)}
                   alt={photo.alt_text ?? listing.title}
                   spotType={listing.spot_type}
-                  sizes="(max-width: 640px) 100vw, 400px"
+                  sizes="(max-width: 640px) 100vw, 360px"
                 />
               </li>
             ))}
           </ul>
         ) : (
-          <div className="mt-5 aspect-21/9 overflow-hidden rounded-xl border border-slate-200">
+          <div className="mt-5 h-40 overflow-hidden rounded-xl border border-slate-200 sm:h-56">
             <SpotArt spotType={listing.spot_type} />
           </div>
         )}

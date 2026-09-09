@@ -27,7 +27,7 @@ export function LegalPage({
     <div className="min-h-dvh bg-slate-50">
       <SiteHeader />
 
-      <main className="mx-auto max-w-2xl px-4 py-10">
+      <main className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 py-10">
         <nav className="mb-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <Link href="/legal/terms" className="text-slate-600 underline underline-offset-4">
             Terms of Service

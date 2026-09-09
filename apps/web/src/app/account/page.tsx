@@ -36,7 +36,7 @@ export default async function AccountPage() {
     <div className="min-h-dvh bg-slate-50">
       <SiteHeader />
 
-      <main className="mx-auto max-w-2xl px-4 py-8">
+      <main className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
             Profile and settings

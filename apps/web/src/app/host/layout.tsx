@@ -26,7 +26,7 @@ export default async function HostLayout({ children }: { children: React.ReactNo
   return (
     <div className="min-h-dvh bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 py-3">
           <Link href="/" className="shrink-0 text-sm font-semibold tracking-tight text-slate-900">
             Parking<span className="text-slate-400">Marketplace</span>
           </Link>
@@ -36,7 +36,7 @@ export default async function HostLayout({ children }: { children: React.ReactNo
 
       {!onboarding.complete ? (
         <div className="border-b border-accent-400/40 bg-accent-50">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm text-accent-900">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-4 sm:px-6 lg:px-8 py-2.5 text-sm text-accent-900">
             <Badge tone="warning">Action needed</Badge>
             <span>
               Upload your identity, address and bank details before you can submit a listing.
@@ -48,7 +48,7 @@ export default async function HostLayout({ children }: { children: React.ReactNo
         </div>
       ) : null}
 
-      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">{children}</main>
     </div>
   );
 }
