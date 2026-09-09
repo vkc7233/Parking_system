@@ -38,14 +38,18 @@ const CHEVRON =
 
 export function SearchControls({
   radius,
+  minPrice,
   maxPrice,
   spotType,
+  sort,
   resultCount,
   nearLabel,
 }: {
   radius: number;
+  minPrice: string;
   maxPrice: string;
   spotType: string;
+  sort: string;
   resultCount: number;
   /** Where the search is centred, so the count names the place the seeker actually asked for. */
   nearLabel: string;
@@ -100,6 +104,24 @@ export function SearchControls({
         ))}
       </select>
 
+      <label className="sr-only" htmlFor="filter-min-price">
+        Minimum price per hour
+      </label>
+      <select
+        id="filter-min-price"
+        style={{ backgroundImage: CHEVRON }}
+        className={selectClass}
+        value={minPrice}
+        onChange={(e) => apply('minPrice', e.target.value)}
+      >
+        <option value="">Any price from</option>
+        {[20, 30, 40, 50].map((p) => (
+          <option key={p} value={p}>
+            From ₹{p}/hour
+          </option>
+        ))}
+      </select>
+
       <label className="sr-only" htmlFor="filter-price">
         Maximum price per hour
       </label>
@@ -116,6 +138,21 @@ export function SearchControls({
             Up to ₹{p}/hour
           </option>
         ))}
+      </select>
+
+      <label className="sr-only" htmlFor="filter-sort">
+        Sort results
+      </label>
+      <select
+        id="filter-sort"
+        style={{ backgroundImage: CHEVRON }}
+        className={selectClass}
+        value={sort}
+        onChange={(e) => apply('sort', e.target.value)}
+      >
+        <option value="">Nearest first</option>
+        <option value="price">Cheapest first</option>
+        <option value="rating">Best rated first</option>
       </select>
 
       <p className="text-sm text-slate-600" aria-live="polite">

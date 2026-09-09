@@ -25,7 +25,9 @@ export const metadata = {
 
 interface SearchParams {
   radius?: string;
+  minPrice?: string;
   maxPrice?: string;
+  sort?: string;
   spotType?: string;
   place?: string;
   lat?: string;
@@ -94,6 +96,7 @@ export default async function HomePage({
 
   const { center, label, slug } = resolveCenter(params);
   const radius = Number(params.radius) || PILOT_CITY.defaultSearchRadiusMeters;
+  const minPricePerHour = params.minPrice ? Number(params.minPrice) * 100 : undefined;
   const maxPricePerHour = params.maxPrice ? Number(params.maxPrice) * 100 : undefined;
   const spotTypes = params.spotType ? [params.spotType as SearchResult['spotType']] : undefined;
 
@@ -113,6 +116,7 @@ export default async function HomePage({
       {
         center,
         radiusMeters: radius,
+        ...(minPricePerHour ? { minPricePerHour } : {}),
         ...(maxPricePerHour ? { maxPricePerHour } : {}),
         ...(spotTypes ? { spotTypes } : {}),
         ...(window ?? {}),
@@ -127,12 +131,32 @@ export default async function HomePage({
     console.error('[home] nearby search failed', error);
   }
 
+  if (results && params.sort) {
+    const sorted = [...results];
+    if (params.sort === 'price') {
+      sorted.sort((a, b) => a.pricePerHour - b.pricePerHour || a.distanceMeters - b.distanceMeters);
+    } else if (params.sort === 'rating') {
+      // Unrated listings sort last rather than as zero: "no reviews yet" is not "rated badly",
+      // and a new host's space should not be buried before anyone has had the chance to rate it.
+      sorted.sort(
+        (a, b) => (b.averageRating ?? -1) - (a.averageRating ?? -1) || a.distanceMeters - b.distanceMeters,
+      );
+    }
+    results = sorted;
+  }
+
   // Recorded only when the seeker actually asked something — a destination, a time, or a
   // filter. Firing on the bare landing page would count every visit as a search and make the
   // search-to-booking rate in §3 meaningless, which is the number that says whether people are
   // finding anything.
   const isDeliberateSearch = Boolean(
-    params.place || params.lat || params.start || params.spotType || params.maxPrice,
+    params.place ||
+      params.lat ||
+      params.start ||
+      params.spotType ||
+      params.maxPrice ||
+      params.minPrice ||
+      params.sort,
   );
 
   if (isDeliberateSearch && results !== null) {
@@ -214,8 +238,10 @@ export default async function HomePage({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <SearchControls
                 radius={radius}
+                minPrice={params.minPrice ?? ''}
                 maxPrice={params.maxPrice ?? ''}
                 spotType={params.spotType ?? ''}
+                sort={params.sort ?? ''}
                 resultCount={results.length}
                 nearLabel={label}
               />

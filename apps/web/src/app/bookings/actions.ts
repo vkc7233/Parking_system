@@ -272,6 +272,7 @@ export async function confirmBookingPayment(
 
   revalidatePath('/bookings');
   revalidatePath(`/bookings/${booking.id}`);
+  revalidatePath('/admin/bookings');
   return {};
 }
 
@@ -290,9 +291,21 @@ export async function cancelBooking(bookingId: string): Promise<BookingActionSta
 
   if (!booking) return { error: 'Booking not found.' };
 
+  // §7.3 asks an Admin to be able to "manually resolve a cancellation". The schema has always
+  // allowed `cancelled_by = 'admin'` and `calculateRefund` has always treated it as a full
+  // refund - only this guard rejected them, so the feature existed everywhere except where
+  // someone could reach it.
   const cancelledBy =
-    booking.seeker_id === profile.id ? 'seeker' : booking.host_id === profile.id ? 'host' : null;
+    booking.seeker_id === profile.id
+      ? 'seeker'
+      : booking.host_id === profile.id
+        ? 'host'
+        : profile.role === 'admin'
+          ? 'admin'
+          : null;
 
+  // Deliberately the same message for "not yours" and "does not exist": telling a stranger which
+  // booking references are real is an invitation to enumerate them.
   if (!cancelledBy) return { error: 'Booking not found.' };
 
   if (booking.status !== 'confirmed' && booking.status !== 'pending_payment') {
@@ -379,5 +392,6 @@ export async function cancelBooking(bookingId: string): Promise<BookingActionSta
 
   revalidatePath('/bookings');
   revalidatePath(`/bookings/${booking.id}`);
+  revalidatePath('/admin/bookings');
   return {};
 }

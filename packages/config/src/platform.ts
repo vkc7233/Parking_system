@@ -155,6 +155,32 @@ export const PILOT_DESTINATIONS = [
   },
 ] as const;
 
+/**
+ * How a Seeker or Host reaches a human (spec §7.1 "Basic support contact").
+ *
+ * WhatsApp rather than a ticket form, because §9.5 already routes notifications through a
+ * WhatsApp Business number and that is where an Indian user expects support to be. §7.1's
+ * criterion is that "a submitted query reaches Admin within 5 minutes" — a message to a monitored
+ * WhatsApp number does; an email inbox nobody has agreed to watch does not.
+ *
+ * The number is a placeholder until the WhatsApp Business account is provisioned (§13). Point it
+ * at the live number before go-live: it is one constant, and it is linked from the footer, the
+ * checkout screen and the Terms.
+ */
+export const SUPPORT = {
+  /** E.164 without the '+', which is the format wa.me expects. */
+  whatsappNumber: '919000000000',
+  email: 'support@example.com',
+  /** Published response expectation, shown next to the link so nobody waits blind. */
+  respondsWithin: 'within a few hours, 9am–9pm',
+} as const;
+
+/** A wa.me link that opens a chat with a message already typed. */
+export function supportWhatsAppUrl(prefill?: string): string {
+  const base = `https://wa.me/${SUPPORT.whatsappNumber}`;
+  return prefill ? `${base}?text=${encodeURIComponent(prefill)}` : base;
+}
+
 export type PilotDestination = (typeof PILOT_DESTINATIONS)[number];
 
 /** The one-tap destination with this slug, or null. Used to resolve `?place=` on search. */
