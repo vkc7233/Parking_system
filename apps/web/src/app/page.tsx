@@ -163,17 +163,17 @@ export default async function HomePage({
         * no question what to do first.
         */}
       <section className="hero-surface relative">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-6 pb-20 sm:pt-14 sm:pb-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-20 sm:pt-14 sm:pb-28">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-brand-100 ring-1 ring-inset ring-white/15 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-accent-400" aria-hidden="true" />
             Now live in {PILOT_CITY.name}, {PILOT_CITY.state}
           </p>
 
-          <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-white sm:mt-4 sm:text-5xl sm:leading-[1.08]">
+          <h1 className="mt-3 max-w-3xl text-2xl font-semibold tracking-tight text-balance text-white sm:mt-4 sm:text-5xl sm:leading-[1.08]">
             Parking you have already booked
           </h1>
 
-          <p className="mt-3 hidden max-w-xl text-sm leading-relaxed text-brand-100 sm:block sm:text-base">
+          <p className="mt-3 hidden max-w-2xl text-sm leading-relaxed text-brand-100 sm:block sm:text-base">
             Reserve a real space near where you are going in {PILOT_CITY.name}, at a price you know
             before you leave. No circling Koregaon Park, no bargaining at the gate.
           </p>
@@ -181,7 +181,7 @@ export default async function HomePage({
       </section>
 
       <div className="relative z-10 -mt-16 sm:-mt-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-lift sm:p-4">
             <SearchBar
               initialWhere={slug ? label : (params.where ?? '')}
@@ -196,7 +196,7 @@ export default async function HomePage({
         </div>
       </div>
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {results === null ? (
           <ServiceUnavailable what="Search" />
         ) : (

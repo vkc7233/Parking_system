@@ -88,9 +88,15 @@ body {
  */
 .hero-surface {
   background-color: var(--color-brand-950);
+  /*
+   * Two cool light sources, deliberately no warm one. An amber wash here (the accent colour)
+   * turned muddy brown where it met the indigo ground — on a wide screen it read as a smudge on
+   * the display rather than as light. Amber earns its meaning by appearing only on scarcity and
+   * money owed, so spending it on decoration cost twice.
+   */
   background-image:
-    radial-gradient(ellipse 80% 60% at 15% 0%, oklch(0.548 0.213 277 / 0.55), transparent 60%),
-    radial-gradient(ellipse 60% 50% at 90% 10%, oklch(0.666 0.155 62 / 0.22), transparent 55%);
+    radial-gradient(ellipse 90% 70% at 12% 0%, oklch(0.548 0.213 277 / 0.6), transparent 62%),
+    radial-gradient(ellipse 70% 60% at 88% 8%, oklch(0.62 0.19 300 / 0.34), transparent 60%);
 }
 
 /* Hides the scrollbar on the horizontally scrolling chip rows without disabling scrolling. */
