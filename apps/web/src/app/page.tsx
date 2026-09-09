@@ -4,6 +4,7 @@ import { formatDistance, searchNearbyListings } from '@parking/api-client';
 import { Card, EmptyState, Money } from '@parking/ui';
 import type { LatLng, SearchResult } from '@parking/types';
 import { createClient } from '@/lib/supabase/server';
+import { clientEnv } from '@/lib/env';
 import { getProfile } from '@/lib/auth';
 import { track } from '@/lib/analytics';
 import { SiteHeader } from '@/components/site-header';
@@ -14,6 +15,7 @@ import { SearchControls } from './search-controls';
 import { SearchBar } from './search-bar';
 import { DestinationChips } from './destination-chips';
 import { ResultMap } from './result-map';
+import { GoogleResultMap } from './google-result-map';
 
 export const metadata = {
   title: 'Find parking in ' + PILOT_CITY.name,
@@ -374,8 +376,24 @@ export default async function HomePage({
                   ))}
                 </ul>
 
+                {/*
+                  * Real tiles when a Maps key is configured, the drawn schematic otherwise. Both
+                  * present the same interaction — a price bubble per space, tap to select, tap
+                  * again to open — so this swap changes how the map looks and nothing about how
+                  * it is used.
+                  */}
                 <div className="mt-4 md:sticky md:top-20 md:mt-0">
-                  <ResultMap results={results} center={center} centerLabel={label} />
+                  {clientEnv.NEXT_PUBLIC_MAPS_PROVIDER === 'google' &&
+                  clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+                    <GoogleResultMap
+                      apiKey={clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+                      results={results}
+                      center={center}
+                      centerLabel={label}
+                    />
+                  ) : (
+                    <ResultMap results={results} center={center} centerLabel={label} />
+                  )}
                 </div>
               </div>
             )}

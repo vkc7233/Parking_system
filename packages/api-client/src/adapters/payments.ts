@@ -45,6 +45,25 @@ export interface PayoutRequest {
   narration?: string;
 }
 
+export interface BeneficiaryInput {
+  hostId: string;
+  /** Must match the name on the bank account, or the transfer is rejected by the bank. */
+  accountHolderName: string;
+  accountNumber: string;
+  ifsc: string;
+  phone: string;
+  email?: string;
+}
+
+export interface BeneficiaryResult {
+  /** What `PayoutRequest.beneficiaryId` expects. */
+  fundAccountId: string;
+  /** Provider-side contact the fund account hangs off. Stored for support and reconciliation. */
+  contactId: string;
+  /** Last four digits, for showing the host which account they registered. */
+  accountLast4: string;
+}
+
 export interface PayoutResult {
   payoutId: string;
   status: 'queued' | 'processing' | 'processed' | 'failed';
@@ -95,6 +114,15 @@ export interface PaymentsAdapter {
      */
     capturedAmount?: number;
   }): Promise<RefundResult>;
+
+  /**
+   * Registers a Host's bank account with the provider and returns the id payouts are sent to.
+   *
+   * Called once during host onboarding. The account number is passed through and deliberately
+   * never persisted by this platform — the returned id is what we keep, so a database breach
+   * here does not expose anyone's bank account (§12, DPDP).
+   */
+  createBeneficiary(input: BeneficiaryInput): Promise<BeneficiaryResult>;
 
   /** Admin-triggered host settlement (spec 6.3, 9.7). */
   createPayout(request: PayoutRequest): Promise<PayoutResult>;

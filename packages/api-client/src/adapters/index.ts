@@ -53,6 +53,10 @@ export interface AdapterEnv {
   MSG91_SENDER_ID?: string;
   MSG91_OTP_TEMPLATE_ID?: string;
   MSG91_WHATSAPP_NUMBER?: string;
+  /** `booking_confirmed=1707…,booking_cancelled=1707…` - DLT-approved SMS template ids. */
+  MSG91_SMS_TEMPLATE_IDS?: string;
+  /** `booking_confirmed=booking_confirmed_v1,…` - approved WhatsApp template names. */
+  MSG91_WHATSAPP_TEMPLATES?: string;
 
   MAPS_PROVIDER?: string;
   GOOGLE_MAPS_API_KEY?: string;
@@ -102,6 +106,23 @@ export function createPaymentsAdapter(env: AdapterEnv): PaymentsAdapter {
   });
 }
 
+/**
+ * Parses `template=value,template=value` into a map.
+ *
+ * A flat string rather than JSON because these land in a hosting provider's environment-variable
+ * box, where a value with quotes and braces gets mangled by whoever pastes it.
+ */
+function parseTemplateMap(raw: string | undefined): Record<string, string> {
+  if (!raw) return {};
+
+  return Object.fromEntries(
+    raw
+      .split(',')
+      .map((pair) => pair.split('=').map((part) => part.trim()))
+      .filter((parts): parts is [string, string] => parts.length === 2 && Boolean(parts[0] && parts[1])),
+  );
+}
+
 export function createNotificationsAdapter(env: AdapterEnv): NotificationsAdapter {
   if ((env.NOTIFICATIONS_PROVIDER ?? 'fake') !== 'msg91') {
     fakeNotifications ??= new FakeNotificationsAdapter();
@@ -112,10 +133,21 @@ export function createNotificationsAdapter(env: AdapterEnv): NotificationsAdapte
     authKey: env.MSG91_AUTH_KEY ?? '',
     senderId: env.MSG91_SENDER_ID ?? 'PARKNG',
     otpTemplateId: env.MSG91_OTP_TEMPLATE_ID ?? '',
-    // Populated as each DLT/WhatsApp template clears approval; an unapproved template fails
-    // loudly on that channel rather than blocking the others.
-    smsTemplateIds: {},
-    whatsappTemplateNames: {},
+    /*
+     * Read from the environment rather than hard-coded empty.
+     *
+     * These were `{}` with a comment saying they would be "populated as each template clears
+     * approval" - which meant a code change and a deploy for every template DLT signed off, and
+     * in the meantime EVERY SMS and WhatsApp send threw `template_not_approved`. With
+     * NOTIFICATIONS_PROVIDER=msg91 that was 100% of booking confirmations failing, against a
+     * criterion that asks for 100% succeeding.
+     *
+     * Templates clear approval one at a time and out of order, so a partial map is the normal
+     * state, not an error: an unmapped template still fails loudly on that channel and the
+     * others carry on.
+     */
+    smsTemplateIds: parseTemplateMap(env.MSG91_SMS_TEMPLATE_IDS),
+    whatsappTemplateNames: parseTemplateMap(env.MSG91_WHATSAPP_TEMPLATES),
     ...(env.MSG91_WHATSAPP_NUMBER ? { whatsappNumber: env.MSG91_WHATSAPP_NUMBER } : {}),
   });
 }

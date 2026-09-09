@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Card, CardBody, CardHeader, Money } from '@parking/ui';
 import { requireProfile } from '@/lib/auth';
-import { getServerEnv } from '@/lib/env';
+import { clientEnv, getServerEnv } from '@/lib/env';
 import { createServiceClient } from '@/lib/supabase/service';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
@@ -115,6 +115,11 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
               amount={Number(payment.amount)}
               provider={getServerEnv().PAYMENTS_PROVIDER}
               expiresAt={booking.hold_expires_at}
+              razorpayKeyId={clientEnv.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? null}
+              reference={booking.reference}
+              listingTitle={listing?.title ?? 'Parking booking'}
+              seekerName={profile.name}
+              seekerPhone={profile.phone}
             />
           </CardBody>
         </Card>

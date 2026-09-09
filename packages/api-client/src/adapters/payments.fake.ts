@@ -202,6 +202,32 @@ export class FakePaymentsAdapter implements PaymentsAdapter {
     return { refundId: this.nextId('rfnd'), amount: input.amount, status: 'processed' };
   }
 
+  async createBeneficiary(input: {
+    hostId: string;
+    accountHolderName: string;
+    accountNumber: string;
+    ifsc: string;
+    phone: string;
+    email?: string;
+  }): Promise<{ fundAccountId: string; contactId: string; accountLast4: string }> {
+    const accountNumber = input.accountNumber.replace(/\s+/g, '');
+
+    // Rejects the same inputs the real provider rejects, so the onboarding form is exercised
+    // against real validation locally rather than discovering it on the day keys arrive.
+    if (!/^\d{9,18}$/.test(accountNumber)) {
+      throw new PaymentAdapterError('Account number must be 9-18 digits', 'provider_error');
+    }
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.ifsc.replace(/\s+/g, '').toUpperCase())) {
+      throw new PaymentAdapterError('That is not a valid IFSC code', 'provider_error');
+    }
+
+    return {
+      fundAccountId: this.nextId('fa'),
+      contactId: this.nextId('cont'),
+      accountLast4: accountNumber.slice(-4),
+    };
+  }
+
   async createPayout(request: PayoutRequest): Promise<PayoutResult> {
     if (request.amount % 100 === FAIL_PAYOUT_SUFFIX) {
       return {

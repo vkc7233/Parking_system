@@ -46,6 +46,19 @@ export default async function AdminPayoutsPage() {
 
   const hosts = (hostRows ?? []) as HostRow[];
 
+  // Which hosts can actually receive money. Shown next to the amount so an admin sees the
+  // blocker before clicking Pay, rather than as an error message afterwards.
+  const { data: bankRows } = await service
+    .from('host_bank_accounts')
+    .select('host_id, account_last4');
+
+  const banked = new Map(
+    ((bankRows ?? []) as { host_id: string; account_last4: string }[]).map((b) => [
+      b.host_id,
+      b.account_last4,
+    ]),
+  );
+
   const owed: Owed[] = [];
 
   for (const host of hosts) {
@@ -138,6 +151,11 @@ export default async function AdminPayoutsPage() {
                         KYC {entry.host.kyc_status}
                       </Badge>
                       {entry.due ? null : <Badge tone="neutral">Carrying forward</Badge>}
+                      {banked.has(entry.host.id) ? (
+                        <Badge tone="neutral">••••{banked.get(entry.host.id)}</Badge>
+                      ) : (
+                        <Badge tone="danger">No bank account</Badge>
+                      )}
                     </div>
 
                     <p className="mt-0.5 text-sm text-slate-600">
@@ -149,10 +167,16 @@ export default async function AdminPayoutsPage() {
                     <p className="mt-1 text-xs text-slate-500">{entry.reason}</p>
 
                     {entry.host.kyc_status !== 'verified' ? (
-                      <p className="mt-1 text-xs text-amber-800">
+                      <p className="mt-1 text-xs text-accent-900">
                         Their documents have not been verified — check before sending money.
                       </p>
                     ) : null}
+
+                    {banked.has(entry.host.id) ? null : (
+                      <p className="mt-1 text-xs text-red-700">
+                        They have not registered a bank account, so this cannot be sent yet.
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-col items-end gap-2">
@@ -163,7 +187,7 @@ export default async function AdminPayoutsPage() {
                       hostId={entry.host.id}
                       hostName={entry.host.name ?? 'this host'}
                       amount={formatPaise(entry.total)}
-                      disabled={!entry.due}
+                      disabled={!entry.due || !banked.has(entry.host.id)}
                     />
                   </div>
                 </div>

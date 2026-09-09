@@ -17,6 +17,7 @@ import { requireAdmin } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { track } from '@/lib/analytics';
+import { notify } from '@/lib/notifications';
 
 export interface AdminActionState {
   error?: string;
@@ -91,6 +92,22 @@ export async function approveListing(
     properties: { listing_id: parsed.data.listingId },
   });
 
+  // §6.3 step 2: the host is told either way. The screen said "the host notified" and nothing
+  // sent anything, so a host learned their listing was live only by going to look.
+  const { data: approved } = await supabase
+    .from('listings')
+    .select('host_id, title')
+    .eq('id', parsed.data.listingId)
+    .single();
+
+  if (approved) {
+    await notify({
+      userId: approved.host_id,
+      template: 'listing_approved',
+      variables: { listing: approved.title },
+    });
+  }
+
   revalidatePath('/admin/listings');
   revalidatePath('/admin');
   return { success: 'Listing approved and live.' };
@@ -123,6 +140,23 @@ export async function rejectListing(
   await audit(admin.id, 'reject_listing', 'listing', parsed.data.listingId, {
     reason: parsed.data.reason,
   });
+
+  // This screen has always claimed "the host notified" and never sent anything. A rejection the
+  // host is not told about is the worst case of the two: their space sits unlisted and they have
+  // no idea a reason was written down.
+  const { data: rejected } = await supabase
+    .from('listings')
+    .select('host_id, title')
+    .eq('id', parsed.data.listingId)
+    .single();
+
+  if (rejected) {
+    await notify({
+      userId: rejected.host_id,
+      template: 'listing_rejected',
+      variables: { listing: rejected.title, reason: parsed.data.reason },
+    });
+  }
 
   revalidatePath('/admin/listings');
   revalidatePath('/admin');

@@ -12,6 +12,8 @@
  */
 import {
   PaymentAdapterError,
+  type BeneficiaryInput,
+  type BeneficiaryResult,
   type CapturedPayment,
   type PaymentOrder,
   type PaymentsAdapter,
@@ -210,6 +212,50 @@ export class RazorpayPaymentsAdapter implements PaymentsAdapter {
           : refund.status === 'failed'
             ? 'failed'
             : 'pending',
+    };
+  }
+
+  /**
+   * RazorpayX models a payee in two steps: a Contact (who they are) and a Fund Account (where
+   * the money goes). A payout is made to the fund account id, never to a bank account directly,
+   * which is why onboarding has to do this once rather than the payout run doing it each time.
+   *
+   * The IFSC is upper-cased and the account number stripped of spaces before sending: both are
+   * routinely typed with the formatting people see on a passbook, and Razorpay rejects them.
+   */
+  async createBeneficiary(input: BeneficiaryInput): Promise<BeneficiaryResult> {
+    const accountNumber = input.accountNumber.replace(/\s+/g, '');
+    const ifsc = input.ifsc.replace(/\s+/g, '').toUpperCase();
+
+    const contact = await this.request<{ id: string }>('/contacts', {
+      method: 'POST',
+      body: {
+        name: input.accountHolderName,
+        contact: input.phone,
+        ...(input.email ? { email: input.email } : {}),
+        type: 'vendor',
+        // Lets support find the platform user from the Razorpay dashboard and back again.
+        reference_id: input.hostId,
+      },
+    });
+
+    const fundAccount = await this.request<{ id: string }>('/fund_accounts', {
+      method: 'POST',
+      body: {
+        contact_id: contact.id,
+        account_type: 'bank_account',
+        bank_account: {
+          name: input.accountHolderName,
+          ifsc,
+          account_number: accountNumber,
+        },
+      },
+    });
+
+    return {
+      fundAccountId: fundAccount.id,
+      contactId: contact.id,
+      accountLast4: accountNumber.slice(-4),
     };
   }
 

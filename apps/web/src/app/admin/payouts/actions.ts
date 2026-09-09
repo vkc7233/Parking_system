@@ -64,6 +64,23 @@ export async function processHostPayout(hostId: string): Promise<PayoutActionSta
 
   const { data: host } = await service.from('users').select('id, name').eq('id', hostId).single();
 
+  // Where the money is actually sent. Checked before the payout row is created, because a payout
+  // row with no destination is a reconciliation problem an admin has to unpick by hand, whereas
+  // a refusal here is a sentence telling them exactly what the host still has to do.
+  const { data: bank } = await service
+    .from('host_bank_accounts')
+    .select('fund_account_id, account_last4')
+    .eq('host_id', hostId)
+    .maybeSingle();
+
+  if (!bank?.fund_account_id) {
+    return {
+      error:
+        `${host?.name ?? 'This host'} has not registered a bank account yet, so there is nowhere ` +
+        'to send this. Ask them to add one under Host → Onboarding.',
+    };
+  }
+
   // The payout row is created first, with a placeholder amount the line items then correct via
   // trigger. Creating it up front means its id exists to use as the provider idempotency key.
   const { data: payout, error: payoutError } = await service
@@ -118,9 +135,7 @@ export async function processHostPayout(hostId: string): Promise<PayoutActionSta
       reference: payout.id,
       hostId,
       amount: total,
-      // Real beneficiary ids come from Razorpay fund accounts created during host onboarding;
-      // that is Phase 3 work (spec §9.7), so the host id stands in until then.
-      beneficiaryId: hostId,
+      beneficiaryId: bank.fund_account_id,
       narration: 'Parking payout',
     });
 
@@ -156,6 +171,7 @@ export async function processHostPayout(hostId: string): Promise<PayoutActionSta
       variables: {
         amount: `₹${(total / 100).toFixed(2)}`,
         reference: result.payoutId,
+        account: `••••${bank.account_last4}`,
       },
     });
 

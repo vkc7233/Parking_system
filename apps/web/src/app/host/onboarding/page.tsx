@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { buttonVariants, Card, CardBody, CardHeader } from '@parking/ui';
 import { getOnboardingState, requireHost } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
 import { DocumentUpload } from './document-upload';
+import { BankAccountForm } from './bank-form';
 
 export const metadata = { title: 'Host onboarding' };
 
@@ -15,6 +17,16 @@ export const metadata = { title: 'Host onboarding' };
 export default async function OnboardingPage() {
   const profile = await requireHost('/host/onboarding');
   const onboarding = await getOnboardingState(profile.id);
+
+  // Read through the host's own session: the RLS policy on this table already restricts it to
+  // the owner, so the service role would only be replacing a database rule with a hand-written
+  // filter.
+  const supabase = await createClient();
+  const { data: bank } = await supabase
+    .from('host_bank_accounts')
+    .select('account_last4, ifsc, account_holder_name')
+    .eq('host_id', profile.id)
+    .maybeSingle();
 
   const rejectedFor = (type: string) => onboarding.rejected.find((d) => d.type === type);
 
@@ -54,6 +66,26 @@ export default async function OnboardingPage() {
           current={onboarding.bankDetails}
           rejected={rejectedFor('bank_details')}
         />
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Where we send your money"
+          description="Required before your first payout. The document above is for identity; this is the payment instruction."
+        />
+        <CardBody>
+          <BankAccountForm
+            existing={
+              bank
+                ? {
+                    accountLast4: bank.account_last4,
+                    ifsc: bank.ifsc,
+                    accountHolderName: bank.account_holder_name,
+                  }
+                : null
+            }
+          />
+        </CardBody>
       </Card>
 
       <Card>

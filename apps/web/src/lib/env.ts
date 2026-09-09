@@ -18,6 +18,13 @@ const clientSchema = z.object({
   // (§7.4 "public listing pages return valid metadata and are crawlable") — a relative URL in a
   // sitemap is ignored by every crawler, silently.
   NEXT_PUBLIC_SITE_URL: z.string().url().default('http://localhost:3000'),
+  /*
+   * Razorpay's *publishable* key id. It is designed to be public - the Checkout widget runs in
+   * the browser and identifies the merchant with it - and it can only create payments against
+   * orders this server already created. The SECRET stays server-side in RAZORPAY_KEY_SECRET and
+   * is what signs and verifies.
+   */
+  NEXT_PUBLIC_RAZORPAY_KEY_ID: z.string().optional(),
   NEXT_PUBLIC_MAPS_PROVIDER: z.enum(['fake', 'google']).default('fake'),
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: z.string().optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
@@ -31,6 +38,7 @@ const rawClientEnv = {
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+  NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
   NEXT_PUBLIC_MAPS_PROVIDER: process.env.NEXT_PUBLIC_MAPS_PROVIDER,
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -66,6 +74,22 @@ const serverSchema = z.object({
   MSG91_SENDER_ID: z.string().optional(),
   MSG91_OTP_TEMPLATE_ID: z.string().optional(),
   MSG91_WHATSAPP_NUMBER: z.string().optional(),
+  /*
+   * DLT and WhatsApp template ids, as `template=value,template=value`.
+   *
+   * A flat string rather than JSON because these are pasted into a hosting provider's
+   * environment-variable box, where braces and quotes get mangled. Templates clear approval one
+   * at a time, so a partial map is the normal state and an unmapped one simply fails on that
+   * channel.
+   */
+  /*
+   * Shared secret for the scheduled notification route. Absent means the route answers 404 to
+   * everyone, which is the safe default: an open endpoint that sends messages to real people is
+   * a spam cannon with our sender id on it.
+   */
+  CRON_SECRET: z.string().optional(),
+  MSG91_SMS_TEMPLATE_IDS: z.string().optional(),
+  MSG91_WHATSAPP_TEMPLATES: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -103,6 +127,16 @@ export function assertProvidersConfigured(): void {
 
   if (env.PAYMENTS_PROVIDER === 'razorpay' && !(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET)) {
     throw new Error('PAYMENTS_PROVIDER=razorpay but RAZORPAY_KEY_ID/SECRET are not set');
+  }
+
+  // Without this the checkout screen renders with no way to pay: the widget cannot identify the
+  // merchant. Worth failing the boot for, because the symptom otherwise appears only at the
+  // moment a seeker tries to hand over money.
+  if (env.PAYMENTS_PROVIDER === 'razorpay' && !clientEnv.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+    throw new Error(
+      'PAYMENTS_PROVIDER=razorpay but NEXT_PUBLIC_RAZORPAY_KEY_ID is not set - ' +
+        'the browser Checkout widget needs the publishable key id',
+    );
   }
 
   if (env.NOTIFICATIONS_PROVIDER === 'msg91' && !env.MSG91_AUTH_KEY) {
