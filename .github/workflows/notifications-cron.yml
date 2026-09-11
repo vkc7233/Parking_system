@@ -1,0 +1,74 @@
+# Sends the two time-based notifications (spec §7.1): the booking reminder and the review
+# request. Nothing else sends them - they are the only messages no user action triggers.
+#
+# This is the PORTABLE scheduler, for a deployment that is not on Vercel. If you deploy to
+# Vercel, apps/web/vercel.json already schedules the same call and you should disable this
+# workflow rather than run both - not because a double-fire sends anything twice (the route
+# skips bookings that already have a log row), but because two schedulers mean two places to
+# look when reminders stop.
+#
+# Enable it by adding two repository secrets (Settings -> Secrets and variables -> Actions):
+#   APP_BASE_URL   https://your-domain.in     (no trailing slash)
+#   CRON_SECRET    the same value the deployment has
+#
+# Without them the job is skipped rather than failing every 15 minutes with a red X.
+#
+# GitHub's scheduler is best-effort: runs are delayed under load, and scheduled workflows are
+# disabled automatically after 60 days with no repository activity. Both matter for a reminder
+# that has to arrive two hours before someone parks. A dedicated scheduler (Vercel Cron, or
+# cron-job.org) is the more reliable choice; this exists so there is always one that works.
+name: Send scheduled notifications
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+# A run that overlaps the previous one sends nothing new, but it does waste minutes and makes
+# the log harder to read.
+concurrency:
+  group: notifications-cron
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the notification run
+        env:
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APP_BASE_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "APP_BASE_URL or CRON_SECRET is not set - skipping."
+            echo "Add them under Settings -> Secrets and variables -> Actions to enable this."
+            exit 0
+          fi
+
+          # --max-time, because a hung request holding a runner for six hours is worse than a
+          # missed run: the next schedule is fifteen minutes away.
+          status=$(curl --silent --show-error --max-time 120 \
+            --write-out '%{http_code}' --output /tmp/response.json \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/notifications")
+
+          echo "HTTP ${status}"
+          cat /tmp/response.json || true
+          echo
+
+          # 404 is what the route returns when the secret does not match, which is deliberate -
+          # it does not confirm the endpoint exists to someone guessing. Called out here because
+          # otherwise it reads as a typo in the URL.
+          if [ "${status}" = "404" ]; then
+            echo "::error::404 - CRON_SECRET here does not match the one the deployment has," \
+                 "or APP_BASE_URL is wrong."
+            exit 1
+          fi
+
+          if [ "${status}" != "200" ]; then
+            echo "::error::The notification run failed with HTTP ${status}."
+            exit 1
+          fi

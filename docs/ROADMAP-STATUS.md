@@ -613,3 +613,20 @@ The fake notification adapter accepts a real email sender on purpose. DLT and Wh
 take one to three weeks; verifying an email sending domain takes hours. `EMAIL_PROVIDER=resend`
 with notifications still faked sends real email through the real path weeks before SMS can be
 tested at all.
+
+### The notification run is scheduled, not just documented
+
+`/api/cron/notifications` existed and nothing called it. `booking_reminder` and `review_request`
+are the only two messages no user action triggers, so an unscheduled route meant neither had ever
+been sent in production.
+
+Two schedulers ship, and only one is enabled: `apps/web/vercel.json` for a Vercel deployment, and
+`.github/workflows/notifications-cron.yml` as the portable fallback. The workflow skips rather
+than fails when its secrets are absent, so an unconfigured repository does not collect a red X
+every fifteen minutes.
+
+Verified against the running app: no header and a wrong header both return 404 (the deliberate
+"a wrong secret looks like a wrong URL" behaviour), the correct header returns
+`{"reminders":0,"reviews":0}`, and with a confirmed booking 90 minutes out the first call returned
+`{"reminders":1,...}` and the second `{"reminders":0,...}` — idempotent, which is what makes a
+scheduler's retry-on-timeout safe.

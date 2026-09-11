@@ -258,19 +258,59 @@ unpaid holds, both running every minute via `pg_cron`. Confirm after deploy with
 select jobname, schedule, active from cron.job;
 ```
 
-**You must schedule this one yourself** — it sends messages, so it lives in the app, not the
-database:
+**The third one sends messages, so it lives in the app, not the database**: the booking reminder
+(2 hours before arrival) and the review request (2 hours after a stay). Nothing else sends these —
+they are the only two messages no user action triggers.
 
-1. Set a secret: `CRON_SECRET=<a long random string>`
-2. Point any scheduler at it every 15 minutes:
+**Step 1, whichever host you use.** Set a long random secret on the deployment:
+
+```bash
+CRON_SECRET=<a long random string>
+```
+
+Without it that route answers **404 to everyone**, including you. That is deliberate — an open
+endpoint that sends messages from your sender id is a spam cannon — but it does mean a wrong
+secret looks exactly like a wrong URL. If your scheduler reports 404, check the secret first.
+
+**Step 2 — pick one.** Two are already written; you only enable one.
+
+| If you deploy to  | Do this                                                                                                                                                                                                                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vercel**        | Nothing. [`apps/web/vercel.json`](../apps/web/vercel.json) already schedules it every 15 minutes, and Vercel sends the `CRON_SECRET` header for you. **Hobby plan only allows daily crons** — reminders need Pro.                                                                       |
+| **Anywhere else** | Add two repository secrets and the workflow runs itself: **Settings → Secrets and variables → Actions** → `APP_BASE_URL` (`https://your-domain.in`, no trailing slash) and `CRON_SECRET` (the same value). See [`notifications-cron.yml`](../.github/workflows/notifications-cron.yml). |
+| **Neither**       | Point [cron-job.org](https://cron-job.org) at the URL below every 15 minutes with that header.                                                                                                                                                                                          |
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR-DOMAIN/api/cron/notifications
 ```
 
-Vercel Cron, GitHub Actions, or cron-job.org all work. Without `CRON_SECRET` set, that route
-answers 404 to everyone — deliberately, since an open endpoint that sends messages from your
-sender id is a spam cannon.
+Do not enable two of them. A double-fire sends nothing twice — the run skips any booking that
+already has a log row for that template, verified by calling it twice in a row — but two
+schedulers means two places to look when reminders stop.
+
+**Check it is working.** A healthy run answers:
+
+```json
+{ "reminders": 0, "reviews": 0 }
+```
+
+Zeros are normal — it means nothing was due in that 15-minute window. What you want to confirm is
+that rows appear in `notification_log` on a day with bookings:
+
+```sql
+select template, channel, status, count(*)
+  from notification_log
+ where template in ('booking_reminder', 'review_request')
+   and created_at > now() - interval '1 day'
+ group by 1, 2, 3;
+```
+
+Nothing there after a day with confirmed bookings means the scheduler is not reaching the route.
+
+> **On GitHub Actions specifically:** its scheduler is best-effort. Runs are delayed under load,
+> and scheduled workflows are disabled automatically after 60 days with no repository activity.
+> Both matter for a reminder that has to arrive before someone drives somewhere. It is the
+> portable option, not the best one.
 
 ---
 
