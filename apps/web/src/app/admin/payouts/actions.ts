@@ -153,8 +153,14 @@ export async function processHostPayout(hostId: string): Promise<PayoutActionSta
 
     if (failed) {
       // The line items stay attached so the money is not silently re-queued into another payout
-      // while this one is unresolved. An admin retries it explicitly once the cause is fixed.
-      return { error: `The transfer failed: ${result.failureReason ?? 'unknown reason'}` };
+      // while this one is unresolved. It now shows under "Failed transfers" on this page, where
+      // an admin returns it to the queue once they have confirmed with the provider that nothing
+      // actually moved - see `voidFailedPayout` below.
+      return {
+        error:
+          `The transfer failed: ${result.failureReason ?? 'unknown reason'}. It is listed under ` +
+          'Failed transfers — check the provider, then return it to the queue to try again.',
+      };
     }
 
     await service.from('admin_audit_log').insert({
@@ -202,4 +208,73 @@ export async function processHostPayout(hostId: string): Promise<PayoutActionSta
 
     return { error: 'The payout provider rejected the transfer. Nothing has been sent.' };
   }
+}
+
+/**
+ * Returns a failed payout's bookings to the unpaid queue (spec §6.3 step 3, §7.3).
+ *
+ * `processHostPayout` leaves the line items attached when a transfer fails, so the money is not
+ * silently re-queued while the failure is unresolved. Without this action that was permanent:
+ * `unpaid_host_earnings` excludes any booking attached to a payout whatever its status, so the
+ * amount disappeared from the admin queue and the host's earnings screen alike, and the host was
+ * simply never paid.
+ *
+ * This does not re-send the transfer, and it deliberately cannot. The payout row id is the
+ * RazorpayX idempotency key, so calling the provider again on the same row replays the stored
+ * failure. Paying again means a new payout row, which means the bookings have to come back to the
+ * queue first — after which the ordinary Pay button re-checks eligibility, the minimum and the
+ * bank account on the way through.
+ *
+ * The admin confirms against the provider dashboard before doing this. A failed transfer can be
+ * ambiguous about whether money moved, and returning one that actually settled would pay twice.
+ */
+export async function voidFailedPayout(
+  payoutId: string,
+  reason: string,
+): Promise<PayoutActionState> {
+  const admin = await requireAdmin();
+  const service = createServiceClient();
+
+  // Detach and stamp happen inside one database transaction: as two calls from here, a failure
+  // between them recreates the stranding in a new shape.
+  const { data, error } = await service.rpc('void_failed_payout', {
+    p_payout_id: payoutId,
+    p_admin_id: admin.id,
+    p_reason: reason,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const result = (data ?? [])[0] as
+    { host_id: string; amount: number; bookings_returned: number } | undefined;
+
+  if (!result) {
+    return { error: 'That payout could not be returned to the queue.' };
+  }
+
+  await service.from('admin_audit_log').insert({
+    admin_id: admin.id,
+    action: 'void_payout',
+    entity_type: 'payout',
+    entity_id: payoutId,
+    details: {
+      host_id: result.host_id,
+      amount: Number(result.amount),
+      bookings_returned: result.bookings_returned,
+      reason,
+    },
+  });
+
+  revalidatePath('/admin/payouts');
+  revalidatePath('/admin');
+
+  const count = result.bookings_returned;
+
+  return {
+    success:
+      `₹${(Number(result.amount) / 100).toFixed(2)} is back in the queue across ${count} ` +
+      `booking${count === 1 ? '' : 's'}. Pay it again from the list above.`,
+  };
 }

@@ -382,6 +382,57 @@ export type Database = {
           },
         ];
       };
+      host_bank_accounts: {
+        Row: {
+          account_holder_name: string;
+          account_last4: string;
+          contact_id: string;
+          created_at: string;
+          fund_account_id: string;
+          host_id: string;
+          ifsc: string;
+          provider: string;
+          updated_at: string;
+        };
+        Insert: {
+          account_holder_name: string;
+          account_last4: string;
+          contact_id: string;
+          created_at?: string;
+          fund_account_id: string;
+          host_id: string;
+          ifsc: string;
+          provider?: string;
+          updated_at?: string;
+        };
+        Update: {
+          account_holder_name?: string;
+          account_last4?: string;
+          contact_id?: string;
+          created_at?: string;
+          fund_account_id?: string;
+          host_id?: string;
+          ifsc?: string;
+          provider?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'host_bank_accounts_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: true;
+            referencedRelation: 'host_profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'host_bank_accounts_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: true;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       listing_agreements: {
         Row: {
           agreement_hash: string;
@@ -799,6 +850,9 @@ export type Database = {
           provider_payout_id: string | null;
           status: Database['public']['Enums']['payout_status'];
           updated_at: string;
+          void_reason: string | null;
+          voided_at: string | null;
+          voided_by: string | null;
         };
         Insert: {
           amount: number;
@@ -816,6 +870,9 @@ export type Database = {
           provider_payout_id?: string | null;
           status?: Database['public']['Enums']['payout_status'];
           updated_at?: string;
+          void_reason?: string | null;
+          voided_at?: string | null;
+          voided_by?: string | null;
         };
         Update: {
           amount?: number;
@@ -833,6 +890,9 @@ export type Database = {
           provider_payout_id?: string | null;
           status?: Database['public']['Enums']['payout_status'];
           updated_at?: string;
+          void_reason?: string | null;
+          voided_at?: string | null;
+          voided_by?: string | null;
         };
         Relationships: [
           {
@@ -859,6 +919,20 @@ export type Database = {
           {
             foreignKeyName: 'payouts_initiated_by_fkey';
             columns: ['initiated_by'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'payouts_voided_by_fkey';
+            columns: ['voided_by'];
+            isOneToOne: false;
+            referencedRelation: 'host_profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'payouts_voided_by_fkey';
+            columns: ['voided_by'];
             isOneToOne: false;
             referencedRelation: 'users';
             referencedColumns: ['id'];
@@ -1039,6 +1113,10 @@ export type Database = {
       };
     };
     Functions: {
+      booking_within_listing_hours: {
+        Args: { p_end: string; p_listing_id: string; p_start: string };
+        Returns: boolean;
+      };
       complete_elapsed_bookings: { Args: never; Returns: number };
       current_role_value: {
         Args: never;
@@ -1059,6 +1137,20 @@ export type Database = {
           total_amount: number;
         }[];
       };
+      hosts_with_unpaid_earnings: {
+        Args: never;
+        Returns: {
+          account_last4: string;
+          booking_count: number;
+          fund_account_id: string;
+          host_id: string;
+          kyc_status: Database['public']['Enums']['kyc_status'];
+          name: string;
+          oldest_completed_at: string;
+          phone: string;
+          total: number;
+        }[];
+      };
       is_admin: { Args: never; Returns: boolean };
       is_suspended: { Args: never; Returns: boolean };
       listing_available_slots: {
@@ -1069,6 +1161,17 @@ export type Database = {
       repack_listing_photo_positions: {
         Args: { p_listing_id: string };
         Returns: undefined;
+      };
+      report_totals: {
+        Args: { p_from: string; p_statuses: string[]; p_to: string };
+        Returns: {
+          bookings: number;
+          fees: number;
+          gross: number;
+          payouts: number;
+          refunded: number;
+          scanned: number;
+        }[];
       };
       search_nearby_listings: {
         Args: {
@@ -1137,6 +1240,14 @@ export type Database = {
           p_title: string;
         };
         Returns: string;
+      };
+      void_failed_payout: {
+        Args: { p_admin_id: string; p_payout_id: string; p_reason: string };
+        Returns: {
+          amount: number;
+          bookings_returned: number;
+          host_id: string;
+        }[];
       };
     };
     Enums: {

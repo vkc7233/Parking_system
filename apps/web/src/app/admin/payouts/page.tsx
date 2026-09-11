@@ -4,6 +4,7 @@ import { Badge, Card, CardBody, CardHeader, EmptyState, Money } from '@parking/u
 import { requireAdmin } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/service';
 import { PayoutButton } from './payout-button';
+import { VoidPayoutButton } from './void-payout-button';
 
 export const metadata = { title: 'Payouts' };
 
@@ -99,10 +100,38 @@ export default async function AdminPayoutsPage() {
   owed.sort((a, b) => b.total - a.total);
   const dueNow = owed.filter((o) => o.due);
 
+  /*
+   * Failed transfers that nobody has resolved yet.
+   *
+   * These are listed first and separately because their money is invisible everywhere else: a
+   * failed payout keeps its line items attached, and `unpaid_host_earnings` excludes any booking
+   * attached to a payout whatever its status. So the amount is gone from the queue above and from
+   * the host's own earnings screen, and this card is the only place it still exists.
+   */
+  const { data: failedRows } = await service
+    .from('payouts')
+    .select(
+      'id, amount, failure_reason, created_at, provider_payout_id, ' +
+        'users!payouts_host_id_fkey(name)',
+    )
+    .eq('status', 'failed')
+    .is('voided_at', null)
+    .order('created_at', { ascending: false });
+
+  const stuck = (failedRows ?? []) as unknown as {
+    id: string;
+    amount: number;
+    failure_reason: string | null;
+    created_at: string;
+    provider_payout_id: string | null;
+    users: { name: string | null } | null;
+  }[];
+
   const { data: recentRows } = await service
     .from('payouts')
     .select(
-      'id, amount, status, processed_at, provider_payout_id, users!payouts_host_id_fkey(name)',
+      'id, amount, status, processed_at, provider_payout_id, voided_at, ' +
+        'users!payouts_host_id_fkey(name)',
     )
     .order('created_at', { ascending: false })
     .limit(10);
@@ -113,6 +142,7 @@ export default async function AdminPayoutsPage() {
     status: string;
     processed_at: string | null;
     provider_payout_id: string | null;
+    voided_at: string | null;
     users: { name: string | null } | null;
   }[];
 
@@ -127,6 +157,58 @@ export default async function AdminPayoutsPage() {
               `${formatPaise(dueNow.reduce((s, o) => s + o.total, 0))} in total.`}
         </p>
       </header>
+
+      {stuck.length === 0 ? null : (
+        <Card>
+          <CardHeader
+            title="Failed transfers"
+            description={
+              `${formatPaise(stuck.reduce((sum, p) => sum + Number(p.amount), 0))} is held against ` +
+              'transfers that did not land. It is not in the queue below and the host cannot see ' +
+              'it either, so it stays here until someone resolves it.'
+            }
+          />
+          <ul className="divide-y divide-slate-100">
+            {stuck.map((payout) => (
+              <li key={payout.id} className="px-5 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-slate-900">
+                        {payout.users?.name ?? 'Unknown host'}
+                      </span>
+                      <Badge tone="danger">Failed</Badge>
+                    </div>
+                    <p className="mt-0.5 text-sm text-red-700">
+                      {payout.failure_reason ?? 'The provider did not say why.'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Attempted {new Date(payout.created_at).toLocaleString('en-IN')}
+                      {payout.provider_payout_id ? ` · ${payout.provider_payout_id}` : ''}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Returning it to the queue lets you pay it again as a new transfer. Retrying
+                      this one cannot work — the provider treats a repeat of the same payout as
+                      already answered.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="text-lg font-semibold tabular-nums text-slate-900">
+                      <Money paise={Number(payout.amount)} />
+                    </span>
+                    <VoidPayoutButton
+                      payoutId={payout.id}
+                      hostName={payout.users?.name ?? 'this host'}
+                      amount={formatPaise(Number(payout.amount))}
+                    />
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card>
         <CardHeader
@@ -228,12 +310,14 @@ export default async function AdminPayoutsPage() {
                     tone={
                       payout.status === 'paid'
                         ? 'success'
-                        : payout.status === 'failed'
-                          ? 'danger'
-                          : 'warning'
+                        : payout.voided_at
+                          ? 'neutral'
+                          : payout.status === 'failed'
+                            ? 'danger'
+                            : 'warning'
                     }
                   >
-                    {payout.status}
+                    {payout.voided_at ? 'failed · returned to queue' : payout.status}
                   </Badge>
                   <span className="text-sm font-medium tabular-nums text-slate-900">
                     <Money paise={Number(payout.amount)} />

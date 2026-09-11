@@ -11,13 +11,13 @@ do later can shorten them.
 
 ## Start these today (they have waiting periods)
 
-| # | What | Where | Typical wait |
-| --- | --- | --- | --- |
-| 1 | **DLT registration + SMS template approval** | [trai.gov.in DLT portal](https://smsheader.trai.gov.in) via MSG91 | **1–3 weeks** |
-| 2 | **WhatsApp Business API + template approval** | MSG91 dashboard → WhatsApp | **1–2 weeks** |
-| 3 | **Razorpay merchant account (KYC)** | [dashboard.razorpay.com](https://dashboard.razorpay.com) | 2–5 working days |
-| 4 | **RazorpayX Payouts activation** | Razorpay dashboard → RazorpayX | Separate approval, ~1 week |
-| 5 | **Legal review of the three policy pages** | Your counsel | Depends on them |
+| #   | What                                          | Where                                                             | Typical wait               |
+| --- | --------------------------------------------- | ----------------------------------------------------------------- | -------------------------- |
+| 1   | **DLT registration + SMS template approval**  | [trai.gov.in DLT portal](https://smsheader.trai.gov.in) via MSG91 | **1–3 weeks**              |
+| 2   | **WhatsApp Business API + template approval** | MSG91 dashboard → WhatsApp                                        | **1–2 weeks**              |
+| 3   | **Razorpay merchant account (KYC)**           | [dashboard.razorpay.com](https://dashboard.razorpay.com)          | 2–5 working days           |
+| 4   | **RazorpayX Payouts activation**              | Razorpay dashboard → RazorpayX                                    | Separate approval, ~1 week |
+| 5   | **Legal review of the three policy pages**    | Your counsel                                                      | Depends on them            |
 
 Nothing else on this list is blocked by anyone but you.
 
@@ -49,7 +49,7 @@ RAZORPAY_KEY_SECRET=xxxxxxxx
 RAZORPAY_WEBHOOK_SECRET=xxxxxxxx
 ```
 
-> `NEXT_PUBLIC_RAZORPAY_KEY_ID` is the *same string* as `RAZORPAY_KEY_ID`. It is duplicated on
+> `NEXT_PUBLIC_RAZORPAY_KEY_ID` is the _same string_ as `RAZORPAY_KEY_ID`. It is duplicated on
 > purpose: the browser widget needs the key id to identify the merchant, and marking it
 > `NEXT_PUBLIC_` makes that explicit rather than accidental. **Never** add `NEXT_PUBLIC_` to the
 > secret.
@@ -72,7 +72,7 @@ account.
 
 **What you do:**
 
-1. Activate **RazorpayX** in the Razorpay dashboard. This is a *separate* approval from Checkout —
+1. Activate **RazorpayX** in the Razorpay dashboard. This is a _separate_ approval from Checkout —
    applying for one does not start the other.
 2. Fund the RazorpayX account. Payouts come from that balance, not from your Checkout settlements.
 3. Find your RazorpayX **account number** (dashboard → RazorpayX → Account Details). It is a
@@ -95,6 +95,33 @@ later instead of on screen.
 
 **Code:** [`bank-actions.ts`](../apps/web/src/app/host/onboarding/bank-actions.ts),
 [`admin/payouts/actions.ts`](../apps/web/src/app/admin/payouts/actions.ts).
+
+### When a transfer fails
+
+Transfers do fail — a closed account, a wrong IFSC, a bank outage. When one does, the money is
+held against the failed payout and **deliberately does not re-queue itself**, because re-queueing
+a transfer that actually settled would pay the host twice.
+
+It shows up in two places: a count on the **Payouts** tab in the admin navigation, and a **Failed
+transfers** card at the top of `/admin/payouts`. Until someone clears it, that money is in neither
+the payout queue nor the host's earnings screen, so the badge is the only thing telling you it
+exists. Check it.
+
+To clear one:
+
+1. Open the transfer in your **RazorpayX dashboard** and confirm whether money actually left the
+   account. This is the part only a human can do, and it is the whole reason the button asks you
+   what you checked.
+2. If nothing left: click **Return to queue**, type what you confirmed, and confirm. The bookings
+   go back into "Owed to hosts" and you can pay them again with the ordinary **Pay** button.
+3. If money _did_ leave despite the failure status, do **not** return it to the queue. Leave it,
+   and reconcile with Razorpay support.
+
+Fix the cause first — usually the host's bank details — or the second attempt fails the same way.
+
+Paying again always creates a **new** payout; there is no retry of the old one. That is not an
+omission: the payout row's id is sent to RazorpayX as the idempotency key, so a second call on the
+same row would return the stored failure rather than attempting a transfer.
 
 ---
 
@@ -216,7 +243,7 @@ and [`cancellation`](../apps/web/src/app/legal/cancellation) against the DPDP Ac
 checks that these pages exist during merchant KYC, so this gates item 1 as well.
 
 While you are there, sign off the open decisions in [`ASSUMPTIONS.md`](ASSUMPTIONS.md) — the
-service fee, the cancellation tiers and the dispute window are all currently *my* choices, and
+service fee, the cancellation tiers and the dispute window are all currently _my_ choices, and
 they are commercial decisions, not technical ones.
 
 ---

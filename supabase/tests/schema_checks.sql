@@ -431,6 +431,87 @@ select pg_temp.expect_failure(
   'payout_bookings_booking_id_key');
 
 -- ---------------------------------------------------------------------------
+-- A failed payout must not strand the money (spec 6.3 step 3, 7.3)
+-- ---------------------------------------------------------------------------
+--
+-- `unpaid_host_earnings` excludes any booking attached to a payout, whatever that payout's
+-- status. That is right while a failed transfer is unresolved - the money must not re-queue
+-- itself - and catastrophic without a way out, because the amount then vanishes from the admin
+-- queue and the host's earnings screen with nothing left pointing at it.
+
+insert into public.bookings (
+  id, listing_id, seeker_id, host_id, start_time, end_time,
+  subtotal, service_fee, total, host_payout, status
+) values (
+  '80000000-0000-4000-8000-000000000012',
+  '10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000004',
+  '00000000-0000-4000-8000-000000000003',
+  now() - interval '3 days 4 hours', now() - interval '3 days',
+  50000, 7500, 57500, 50000, 'pending_payment'
+);
+update public.bookings set status = 'confirmed'
+ where id = '80000000-0000-4000-8000-000000000012';
+update public.bookings set status = 'completed'
+ where id = '80000000-0000-4000-8000-000000000012';
+
+insert into public.payouts (id, host_id, period_start, period_end, amount, status,
+                            initiated_by, failure_reason)
+values ('70000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000003',
+        now() - interval '7 days', now(), 1, 'failed',
+        '00000000-0000-4000-8000-000000000001', 'Beneficiary account closed');
+
+insert into public.payout_bookings (payout_id, booking_id, amount)
+values ('70000000-0000-4000-8000-000000000003', '80000000-0000-4000-8000-000000000012', 50000);
+
+select pg_temp.record('a failed payout holds its bookings out of the queue',
+  (select count(*) = 0 from public.unpaid_host_earnings(
+     '00000000-0000-4000-8000-000000000003', '-infinity', 'infinity')
+    where booking_id = '80000000-0000-4000-8000-000000000012'));
+
+select pg_temp.expect_failure(
+  'only a failed payout can be returned to the queue',
+  $$select public.void_failed_payout('70000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000001', 'not failed')$$,
+  'Only a failed payout');
+
+select public.void_failed_payout('70000000-0000-4000-8000-000000000003',
+  '00000000-0000-4000-8000-000000000001', 'Provider shows the transfer reversed');
+
+select pg_temp.record('voiding a failed payout returns the money to the queue',
+  (select count(*) = 1 from public.unpaid_host_earnings(
+     '00000000-0000-4000-8000-000000000003', '-infinity', 'infinity')
+    where booking_id = '80000000-0000-4000-8000-000000000012'));
+
+-- The audit trail is the reason the row is kept rather than deleted, and the amount is the only
+-- number on it that says how much the failed transfer was for. Detaching the line items drives
+-- the sync trigger to 0, which `payouts_amount_check` would reject outright - so this check
+-- fails loudly rather than silently if the trigger's void guard is ever removed.
+select pg_temp.record('a voided payout keeps the amount that was attempted',
+  (select amount = 50000 and voided_at is not null and voided_by is not null
+     from public.payouts where id = '70000000-0000-4000-8000-000000000003'),
+  (select format('amount=%s voided_at=%s', amount, voided_at)
+     from public.payouts where id = '70000000-0000-4000-8000-000000000003'));
+
+select pg_temp.expect_failure(
+  'a payout cannot be returned to the queue twice',
+  $$select public.void_failed_payout('70000000-0000-4000-8000-000000000003',
+      '00000000-0000-4000-8000-000000000001', 'again')$$,
+  'already returned');
+
+-- Paying it again is a NEW payout row, which is the whole point: the row id is the provider's
+-- idempotency key, so reusing the old one would replay the stored failure instead of transferring.
+insert into public.payouts (id, host_id, period_start, period_end, amount, initiated_by)
+values ('70000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000003',
+        now() - interval '7 days', now(), 1, '00000000-0000-4000-8000-000000000001');
+
+insert into public.payout_bookings (payout_id, booking_id, amount)
+values ('70000000-0000-4000-8000-000000000004', '80000000-0000-4000-8000-000000000012', 50000);
+
+select pg_temp.record('a returned booking can be attached to a fresh payout',
+  (select amount = 50000 from public.payouts
+    where id = '70000000-0000-4000-8000-000000000004'));
+
+-- ---------------------------------------------------------------------------
 -- Reviews (spec 7.1, A16)
 -- ---------------------------------------------------------------------------
 

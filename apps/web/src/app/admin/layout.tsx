@@ -18,6 +18,24 @@ async function pendingCount(table: string, column: string, value: string): Promi
 }
 
 /**
+ * Payouts whose transfer failed and which nobody has resolved yet.
+ *
+ * Counted here rather than only on the payouts page because this money is invisible everywhere
+ * else - a failed payout keeps its bookings attached, so the amount is not in the queue and not
+ * on the host's earnings screen. Without a badge, the only way to discover it is to go looking.
+ */
+async function unresolvedFailedPayouts(): Promise<number> {
+  const service = createServiceClient();
+  const { count } = await service
+    .from('payouts')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'failed')
+    .is('voided_at', null);
+
+  return count ?? 0;
+}
+
+/**
  * Admin shell (spec §8.3, §8.4).
  *
  * §8.4 keeps /admin off the main navigation entirely — it is reached by typing the URL. The
@@ -31,10 +49,11 @@ async function pendingCount(table: string, column: string, value: string): Promi
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
 
-  const [listings, documents, disputes] = await Promise.all([
+  const [listings, documents, disputes, failedPayouts] = await Promise.all([
     pendingCount('listings', 'status', 'pending'),
     pendingCount('documents', 'verified_status', 'pending'),
     pendingCount('disputes', 'status', 'open'),
+    unresolvedFailedPayouts(),
   ]);
 
   const tabs: NavTab[] = [
@@ -42,7 +61,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/listings', label: 'Listings', ...(listings ? { badge: listings } : {}) },
     { href: '/admin/documents', label: 'Documents', ...(documents ? { badge: documents } : {}) },
     { href: '/admin/bookings', label: 'Bookings' },
-    { href: '/admin/payouts', label: 'Payouts' },
+    {
+      href: '/admin/payouts',
+      label: 'Payouts',
+      ...(failedPayouts ? { badge: failedPayouts } : {}),
+    },
     { href: '/admin/disputes', label: 'Disputes', ...(disputes ? { badge: disputes } : {}) },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/reports', label: 'Reports' },
