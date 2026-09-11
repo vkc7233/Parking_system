@@ -133,7 +133,14 @@ export class FakePaymentsAdapter implements PaymentsAdapter {
     const parsed = JSON.parse(rawBody) as {
       event?: string;
       payload?: {
-        payment?: { entity?: { id?: string; order_id?: string; amount?: number } };
+        payment?: {
+          entity?: {
+            id?: string;
+            order_id?: string;
+            amount?: number;
+            error_description?: string;
+          };
+        };
       };
     };
     const entity = parsed.payload?.payment?.entity;
@@ -143,6 +150,7 @@ export class FakePaymentsAdapter implements PaymentsAdapter {
       paymentId: entity?.id ?? null,
       orderId: entity?.order_id ?? null,
       amount: entity?.amount ?? null,
+      ...(entity?.error_description ? { failureReason: entity.error_description } : {}),
       raw: parsed,
     };
   }

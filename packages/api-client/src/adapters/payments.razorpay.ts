@@ -189,6 +189,7 @@ export class RazorpayPaymentsAdapter implements PaymentsAdapter {
       paymentId: payment?.id ?? null,
       orderId: payment?.order_id ?? null,
       amount: payment?.amount ?? null,
+      ...(payment?.error_description ? { failureReason: payment.error_description } : {}),
       raw: parsed,
     };
   }

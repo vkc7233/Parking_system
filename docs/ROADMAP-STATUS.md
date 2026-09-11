@@ -630,3 +630,53 @@ Verified against the running app: no header and a wrong header both return 404 (
 `{"reminders":0,"reviews":0}`, and with a confirmed booking 90 minutes out the first call returned
 `{"reminders":1,...}` and the second `{"reminders":0,...}` — idempotent, which is what makes a
 scheduler's retry-on-timeout safe.
+
+---
+
+## The last three open items, closed — 11 September 2026
+
+### The webhook now reverts, without breaking retries
+
+§11 asks `razorpay-webhook` to "confirm or revert the booking accordingly". It only ever
+confirmed. The obvious fix — fail the booking on `payment.failed` — would have been worse than
+the gap:
+
+`payment.failed` fires per **attempt**, not per order. Razorpay Checkout lets the same order be
+retried with another card, and `payment_failed` is a terminal booking status (the transition
+trigger allows nothing out of it). Failing on attempt one would leave a seeker who then succeeds
+with a captured payment and a booking that can never be confirmed — money taken, nothing given.
+Releasing the slot on a decline is also hostile: reaching for a second card and finding the space
+gone.
+
+So: every failed attempt records the provider's reason on the payments row, the slot stays held
+while a retry is possible, and the booking is reverted only once the hold has lapsed. The part
+that was genuinely missing was the recording — `payments.failure_reason` existed and nothing ever
+wrote it, so neither the seeker nor support could say why a payment had not worked. The checkout
+screen now says, and tells them the space is still held.
+
+Exercised against the running app with signed payloads: declined-while-held returns
+`{recorded, retryable}` and leaves the booking payable; declined-after-lapse returns
+`{recorded, reverted}`; a retry then **confirms the held booking**; an unknown order, a stale
+failure arriving after capture, and a forged signature are each handled. The transition this
+depends on is pinned in `schema_checks.sql`.
+
+### The support number cannot ship as a placeholder
+
+It is now `NEXT_PUBLIC_SUPPORT_WHATSAPP`, normalised from whatever shape someone pastes, and a
+**production boot throws** while it is unset. §7.1's five-minute criterion cannot be met by a
+number that reaches nobody, and the old failure was silent.
+
+Read with dot notation, not `process.env['...']` — Next only substitutes the literal text into
+the client bundle, so bracket access would have left the server with the real number and the
+browser with the placeholder. Verified in the browser: `+91 98220 11223` reached the client as
+`919822011223`. Eleven tests pin the formats.
+
+### The map pin is verified, short of billable tiles
+
+Driven in the browser against a stubbed Maps API: the component builds the map at zoom 18 with
+cooperative gestures, creates a **draggable** marker, and registers both `dragend` and map
+`click`. Dragging 0.0018° north reported "Pin moved 200 m"; tapping reported 109 m; the hidden
+`lat`/`lng` the form posts followed both. The address text was unchanged by either gesture, which
+is the design promise — the pin moves coordinates, never the address.
+
+What remains unexercised is Google's own tile rendering, which needs a billable key.

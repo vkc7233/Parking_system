@@ -77,6 +77,14 @@ export interface WebhookEvent {
   orderId: string | null;
   /** Paise. */
   amount: number | null;
+  /**
+   * Why the payment failed, in the provider's words, when the event is a failure.
+   *
+   * Passed through rather than rewritten: "card declined by issuing bank" and "insufficient
+   * funds" need different things from the seeker, and a generic "payment failed" tells them
+   * neither. It is stored on the payments row, so support can answer "why did mine not work".
+   */
+  failureReason?: string | undefined;
   raw: unknown;
 }
 

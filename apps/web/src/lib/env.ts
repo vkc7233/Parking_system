@@ -10,6 +10,7 @@
  * error instead of a security incident.
  */
 import { z } from 'zod';
+import { supportContactIsPlaceholder } from '@parking/config';
 
 const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -27,6 +28,14 @@ const clientSchema = z.object({
   NEXT_PUBLIC_RAZORPAY_KEY_ID: z.string().optional(),
   NEXT_PUBLIC_MAPS_PROVIDER: z.enum(['fake', 'google']).default('fake'),
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: z.string().optional(),
+
+  /*
+   * The support contact (spec §7.1). Public on purpose — it is a phone number printed on the
+   * page, not a secret. Absent, the footer link falls back to a placeholder and a production
+   * boot refuses to start; see assertProvidersConfigured.
+   */
+  NEXT_PUBLIC_SUPPORT_WHATSAPP: z.string().optional(),
+  NEXT_PUBLIC_SUPPORT_EMAIL: z.string().optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
   NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
   NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
@@ -41,6 +50,8 @@ const rawClientEnv = {
   NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
   NEXT_PUBLIC_MAPS_PROVIDER: process.env.NEXT_PUBLIC_MAPS_PROVIDER,
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+  NEXT_PUBLIC_SUPPORT_WHATSAPP: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP,
+  NEXT_PUBLIC_SUPPORT_EMAIL: process.env.NEXT_PUBLIC_SUPPORT_EMAIL,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
   NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
@@ -161,5 +172,21 @@ export function assertProvidersConfigured(): void {
     !clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   ) {
     throw new Error('NEXT_PUBLIC_MAPS_PROVIDER=google but no API key is set');
+  }
+
+  /*
+   * §7.1 asks that a support query reach an Admin within five minutes. The placeholder number
+   * reaches nobody, and the failure is silent — the link opens, WhatsApp opens, the message goes
+   * nowhere, and the first person to find out is a seeker with a problem.
+   *
+   * Only fatal in production. Development and preview builds keep the placeholder happily,
+   * because nobody is relying on them for support.
+   */
+  if (process.env.NODE_ENV === 'production' && supportContactIsPlaceholder()) {
+    throw new Error(
+      'NEXT_PUBLIC_SUPPORT_WHATSAPP is not set, so "Get help" still points at the placeholder ' +
+        'number and support messages would go nowhere. Set it to the monitored WhatsApp ' +
+        'Business number before deploying.',
+    );
   }
 }

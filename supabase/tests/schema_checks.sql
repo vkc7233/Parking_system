@@ -288,6 +288,17 @@ insert into public.bookings (
 select pg_temp.record('A10: the sweep expires this booking too',
   (select public.expire_unpaid_bookings() >= 1));
 
+/*
+ * Terminal, and the Razorpay webhook's design depends on it being terminal.
+ *
+ * `payment.failed` fires per ATTEMPT, not per order - Razorpay Checkout lets the same order be
+ * retried with another card. So the webhook records the reason and leaves the booking alone
+ * while the hold is live, reverting it only once a retry is impossible. Failing the booking on
+ * the first decline would, because of exactly this rule, strand a seeker who then succeeds:
+ * captured payment, booking that can never be confirmed.
+ *
+ * If this check is ever relaxed, re-read apps/web/src/app/api/webhooks/razorpay/route.ts.
+ */
 select pg_temp.expect_failure(
   'A9: a payment_failed booking cannot be resurrected',
   $$update public.bookings set status = 'confirmed'

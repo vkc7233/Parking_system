@@ -220,7 +220,28 @@ it to `createEmailSender`. Nothing else in the product knows which provider send
 
 ---
 
-## 5. Google Maps — real tiles
+## 5. The support number — a production build will not start without it
+
+§7.1 asks that a support query reach an Admin within five minutes. Set:
+
+```bash
+NEXT_PUBLIC_SUPPORT_WHATSAPP=+91 98765 43210
+NEXT_PUBLIC_SUPPORT_EMAIL=help@yourdomain.in
+```
+
+Any of `+91 98765 43210`, `+919876543210` or a bare `9876543210` works — it is normalised to what
+`wa.me` needs. Use the number someone actually watches; it is linked from the footer, the Terms
+and the checkout screen.
+
+**If you do not set it, a production boot throws** with a message naming the variable. That is
+deliberate: the fallback placeholder opens WhatsApp, sends the message nowhere, and fails
+silently — the first person to discover it would otherwise be a seeker with a problem.
+
+Development and preview builds keep the placeholder happily.
+
+---
+
+## 6. Google Maps — real tiles
 
 **What is already built:** geocoding, autocomplete, and a real Google map that replaces the drawn
 one automatically when a key is present.
@@ -249,7 +270,7 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSy...
 
 ---
 
-## 6. Scheduling — two places, not one
+## 7. Scheduling — two places, not one
 
 **Already scheduled inside Postgres** (nothing to do): completing elapsed bookings and expiring
 unpaid holds, both running every minute via `pg_cron`. Confirm after deploy with:
@@ -314,7 +335,7 @@ Nothing there after a day with confirmed bookings means the scheduler is not rea
 
 ---
 
-## 7. Error tracking
+## 8. Error tracking
 
 1. Create a Sentry project (platform: Next.js).
 2. Copy the DSN and set `NEXT_PUBLIC_SENTRY_DSN=https://xxx@oyyy.ingest.sentry.io/zzz`.
@@ -323,7 +344,7 @@ Nothing there after a day with confirmed bookings means the scheduler is not rea
 
 ---
 
-## 8. Legal — before go-live, not after
+## 9. Legal — before go-live, not after
 
 The three pages exist and are linked from the footer, the booking form and the checkout screen.
 **They are drafts and have not been reviewed by counsel.**
@@ -338,7 +359,7 @@ they are commercial decisions, not technical ones.
 
 ---
 
-## 9. Other environment variables
+## 10. Other environment variables
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://YOUR-DOMAIN     # sitemap and social cards need absolute URLs
@@ -351,7 +372,7 @@ holding it can mint a valid parking pass.
 
 ---
 
-## 10. Before you announce it
+## 11. Before you announce it
 
 - [ ] One real ₹1 booking, end to end, on a real phone
 - [ ] The host scans that pass at **Host → Check a pass**
@@ -369,9 +390,9 @@ holding it can mint a valid parking pass.
 
 Being straight with you, so nothing surprises you later:
 
-- **No in-app support inbox.** The "Get help" link opens WhatsApp to the number in
-  [`platform.ts`](../packages/config/src/platform.ts) (`SUPPORT.whatsappNumber`) — **change that
-  placeholder before launch** or messages go nowhere.
+- **No in-app support inbox.** "Get help" opens WhatsApp to `NEXT_PUBLIC_SUPPORT_WHATSAPP`. That
+  is a deliberate MVP choice (§7.1 accepts a WhatsApp link), not a gap — but there is no ticket
+  queue behind it, so someone has to watch that number.
 - **Spec §11 names these as Supabase Edge Functions**; they are Next.js server actions and route
   handlers. Functionally equivalent and service-role gated. Worth correcting in the spec rather
   than rewriting working code.

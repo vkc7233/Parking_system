@@ -42,7 +42,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
 
   const { data: payment } = await service
     .from('payments')
-    .select('provider_order_id, amount')
+    .select('provider_order_id, amount, status, failure_reason')
     .eq('booking_id', booking.id)
     .maybeSingle();
 
@@ -67,6 +67,23 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
         <p className="mt-1 text-slate-600">
           Your space is held while you complete payment. Nothing is charged until you do.
         </p>
+
+        {/*
+          A previous attempt that did not go through, in the provider's words.
+
+          The booking is still here and the slot is still held - `payment.failed` is per attempt,
+          not per order - so this is a retry, and the seeker needs to know whether to try the same
+          card again or reach for a different one. "Payment failed" would not tell them that.
+        */}
+        {payment.status === 'failed' && payment.failure_reason ? (
+          <p
+            role="alert"
+            className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800"
+          >
+            <span className="font-medium">Your last attempt did not go through.</span>{' '}
+            {payment.failure_reason} Your space is still held — try again below.
+          </p>
+        ) : null}
 
         <Card className="mt-6">
           <CardHeader
@@ -125,12 +142,12 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
         </Card>
 
         {/*
-          * §7.4 requires the three legal pages to be "linked from checkout and footer". They
-          * were on the footer and on the booking form, but not here — the one screen where
-          * money actually changes hands, and the exact moment someone wants to re-read what
-          * happens if they cancel. They open in a new tab so a seeker checking the refund rules
-          * does not lose a slot that is held for ten minutes.
-          */}
+         * §7.4 requires the three legal pages to be "linked from checkout and footer". They
+         * were on the footer and on the booking form, but not here — the one screen where
+         * money actually changes hands, and the exact moment someone wants to re-read what
+         * happens if they cancel. They open in a new tab so a seeker checking the refund rules
+         * does not lose a slot that is held for ten minutes.
+         */}
         <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
           By paying you accept our{' '}
           <Link

@@ -163,17 +163,66 @@ export const PILOT_DESTINATIONS = [
  * criterion is that "a submitted query reaches Admin within 5 minutes" — a message to a monitored
  * WhatsApp number does; an email inbox nobody has agreed to watch does not.
  *
- * The number is a placeholder until the WhatsApp Business account is provisioned (§13). Point it
- * at the live number before go-live: it is one constant, and it is linked from the footer, the
- * checkout screen and the Terms.
+ * The number comes from the environment, because it is not known until the WhatsApp Business
+ * account is provisioned (§13) and it must not be a code change on the day it is. Unset, it falls
+ * back to the placeholder below — and `assertSupportContactConfigured` refuses to boot a
+ * production build still using it, so "we forgot to change the support number" cannot be
+ * something a customer discovers for us.
  */
+
+/** Recognisable on sight, and never a real number. Exported so the boot check can detect it. */
+export const PLACEHOLDER_SUPPORT_NUMBER = '919000000000';
+
 export const SUPPORT = {
   /** E.164 without the '+', which is the format wa.me expects. */
-  whatsappNumber: '919000000000',
-  email: 'support@example.com',
+  whatsappNumber: readSupportNumber(),
+  email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@example.com',
   /** Published response expectation, shown next to the link so nobody waits blind. */
   respondsWithin: 'within a few hours, 9am–9pm',
 } as const;
+
+/**
+ * Read from `NEXT_PUBLIC_SUPPORT_WHATSAPP`, tolerating how people actually type a phone number.
+ *
+ * `+91 90000 00000`, `+919000000000` and `919000000000` are the same number; wa.me accepts only
+ * the last form. Normalising here rather than asking whoever sets the variable to know that is
+ * the difference between a support link that works and one that opens an empty chat.
+ */
+function readSupportNumber(): string {
+  /*
+   * Dot notation, not `process.env['...']`, and it matters.
+   *
+   * Next substitutes NEXT_PUBLIC_ variables into the client bundle by matching the literal text
+   * `process.env.NEXT_PUBLIC_X`. Bracket access is not substituted — the server would read the
+   * real number and the browser would silently fall back to the placeholder, which is the exact
+   * failure this whole mechanism exists to prevent.
+   */
+  return normaliseSupportNumber(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP);
+}
+
+/**
+ * `+91 98220 11223`, `+919822011223` and `9822011223` are the same number; wa.me accepts only
+ * the last shape, digits and nothing else. Normalising here rather than expecting whoever pastes
+ * the number into a hosting dashboard to know that is the difference between a support link that
+ * opens a chat and one that opens nothing.
+ *
+ * Anything unusable falls back to the placeholder, which the production boot check then refuses —
+ * a typo that leaves no digits should stop a deploy, not quietly ship a broken link.
+ */
+export function normaliseSupportNumber(raw: string | undefined): string {
+  if (!raw) return PLACEHOLDER_SUPPORT_NUMBER;
+
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return PLACEHOLDER_SUPPORT_NUMBER;
+
+  // A bare 10-digit Indian mobile is the most likely thing to be pasted in.
+  return digits.length === 10 ? `91${digits}` : digits;
+}
+
+/** True while the support link still points at nobody. */
+export function supportContactIsPlaceholder(): boolean {
+  return SUPPORT.whatsappNumber === PLACEHOLDER_SUPPORT_NUMBER;
+}
 
 /** A wa.me link that opens a chat with a message already typed. */
 export function supportWhatsAppUrl(prefill?: string): string {
