@@ -3,6 +3,7 @@ import { formatPaise } from '@parking/core';
 import { Badge, Card, CardBody, CardHeader, EmptyState } from '@parking/ui';
 import { requireHost } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { BlockedPeriods, type BlockedPeriod } from './blocked-periods';
 
 export const metadata = { title: 'Bookings calendar' };
 
@@ -82,6 +83,42 @@ export default async function HostCalendarPage({
   const { data } = await query;
   const bookings = (data ?? []) as unknown as CalendarBooking[];
 
+  /*
+   * Periods the host has closed (spec §7.2, §10).
+   *
+   * Only the ones that have not finished yet. A block from last March is not something a host
+   * needs to act on, and listing it would bury the one they closed for next week.
+   */
+  const { data: blockRows } = await supabase
+    .from('availability_blocks')
+    .select('id, listing_id, start_time, end_time, reason, listings!inner(title, host_id)')
+    .eq('listings.host_id', profile.id)
+    .gte('end_time', new Date().toISOString())
+    .order('start_time')
+    .limit(50);
+
+  const allBlocks = (
+    (blockRows ?? []) as unknown as {
+      id: string;
+      listing_id: string;
+      start_time: string;
+      end_time: string;
+      reason: string | null;
+      listings: { title: string } | null;
+    }[]
+  ).map<BlockedPeriod>((row) => ({
+    id: row.id,
+    listingId: row.listing_id,
+    listingTitle: row.listings?.title ?? 'Listing removed',
+    startTime: row.start_time,
+    endTime: row.end_time,
+    reason: row.reason,
+  }));
+
+  // The listing filter above the arrivals list applies here too, or the two halves of the page
+  // would be describing different spaces.
+  const blocks = selected ? allBlocks.filter((b) => b.listingId === selected.id) : allBlocks;
+
   // Grouped by local day, because a booking at 00:30 IST belongs to that morning for the host
   // standing at the gate, not to the previous UTC day.
   const byDay = new Map<string, CalendarBooking[]>();
@@ -121,7 +158,11 @@ export default async function HostCalendarPage({
         ].map((tab) => (
           <Link
             key={tab.href}
-            href={selected ? `${tab.href}${tab.href.includes('?') ? '&' : '?'}listing=${selected.id}` : tab.href}
+            href={
+              selected
+                ? `${tab.href}${tab.href.includes('?') ? '&' : '?'}listing=${selected.id}`
+                : tab.href
+            }
             aria-current={tab.active ? 'page' : undefined}
             className={
               'rounded-full border px-3 py-1.5 text-sm font-medium transition ' +
@@ -178,7 +219,11 @@ export default async function HostCalendarPage({
 
         {bookings.length === 0 ? (
           <EmptyState
-            title={showingPast ? 'Nothing in the last four weeks' : 'Nothing booked in the next four weeks'}
+            title={
+              showingPast
+                ? 'Nothing in the last four weeks'
+                : 'Nothing booked in the next four weeks'
+            }
             description={
               listings.length === 0
                 ? 'Once you list a space and it goes live, bookings appear here.'
@@ -197,7 +242,9 @@ export default async function HostCalendarPage({
                     key={date.toISOString()}
                     className="flex items-center gap-3 px-5 py-1.5 text-xs text-slate-400"
                   >
-                    <span className={'w-28 shrink-0' + (isToday ? ' font-medium text-brand-600' : '')}>
+                    <span
+                      className={'w-28 shrink-0' + (isToday ? ' font-medium text-brand-600' : '')}
+                    >
                       {isToday
                         ? 'Today'
                         : date.toLocaleDateString('en-IN', {
@@ -250,7 +297,9 @@ export default async function HostCalendarPage({
                           </span>
                         )}
 
-                        <span className="font-mono text-xs text-slate-500">{booking.reference}</span>
+                        <span className="font-mono text-xs text-slate-500">
+                          {booking.reference}
+                        </span>
 
                         {booking.checked_in_at ? (
                           <Badge tone="success">Arrived</Badge>
@@ -278,6 +327,16 @@ export default async function HostCalendarPage({
             </Link>{' '}
             and scan their code, or type the reference shown above.
           </p>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Closed periods"
+          description="Days you are away or the space is unusable. Nobody can book a space while it is closed, and it stops showing in search for those times."
+        />
+        <CardBody>
+          <BlockedPeriods listings={listings} blocks={blocks} defaultListingId={selected?.id} />
         </CardBody>
       </Card>
     </div>

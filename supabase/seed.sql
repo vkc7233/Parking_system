@@ -183,12 +183,18 @@ update public.listings
 update public.listings set status = 'paused'
  where id = '10000000-0000-4000-8000-000000000005';
 
--- A host-blocked window on the Prahlad Nagar listing, for testing availability logic.
+-- A host-blocked window on the MG Road listing, for testing availability logic.
+--
+-- Built in Asia/Kolkata rather than in the database's zone. `date_trunc('day', now())` truncates
+-- to midnight UTC, so "+ 9 hours" was 09:00 UTC - which is 14:30 in Pune, and made the seeded
+-- maintenance window read as 2:30pm to 11:30pm on the host's own calendar.
 insert into public.availability_blocks (listing_id, start_time, end_time, reason)
 values (
   '10000000-0000-4000-8000-000000000002',
-  date_trunc('day', now()) + interval '2 days' + interval '9 hours',
-  date_trunc('day', now()) + interval '2 days' + interval '18 hours',
+  (date_trunc('day', now() at time zone 'Asia/Kolkata') + interval '2 days' + interval '9 hours')
+    at time zone 'Asia/Kolkata',
+  (date_trunc('day', now() at time zone 'Asia/Kolkata') + interval '2 days' + interval '18 hours')
+    at time zone 'Asia/Kolkata',
   'Building maintenance'
 )
 on conflict do nothing;

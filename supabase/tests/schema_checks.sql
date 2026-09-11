@@ -431,6 +431,88 @@ select pg_temp.expect_failure(
   'payout_bookings_booking_id_key');
 
 -- ---------------------------------------------------------------------------
+-- Availability blocks (spec 7.2, 10)
+-- ---------------------------------------------------------------------------
+--
+-- The booking trigger has always refused a booking that overlaps a block. Nothing refused a
+-- BLOCK that overlaps a booking the seeker has already paid for - which did not matter while no
+-- screen created blocks, and matters now that one does. A host closing next Tuesday would
+-- otherwise leave a confirmed seeker arriving at a space the host believes is shut.
+
+insert into public.bookings (
+  id, listing_id, seeker_id, host_id, start_time, end_time,
+  subtotal, service_fee, total, host_payout, status
+) values (
+  '80000000-0000-4000-8000-000000000013',
+  '10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000004',
+  '00000000-0000-4000-8000-000000000003',
+  now() + interval '5 days', now() + interval '5 days 2 hours',
+  20000, 3000, 23000, 20000, 'pending_payment'
+);
+update public.bookings set status = 'confirmed'
+ where id = '80000000-0000-4000-8000-000000000013';
+
+select pg_temp.expect_failure(
+  'spec 7.2: a host cannot close a period they have already sold',
+  $$insert into public.availability_blocks (listing_id, start_time, end_time, reason)
+    values ('10000000-0000-4000-8000-000000000004',
+            now() + interval '4 days 23 hours', now() + interval '5 days 3 hours', 'Away')$$,
+  'already runs from');
+
+-- A window that does not touch a booking is the normal case and must still work.
+insert into public.availability_blocks (id, listing_id, start_time, end_time, reason)
+values ('90000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000004',
+        now() + interval '9 days', now() + interval '9 days 8 hours', 'Away');
+
+select pg_temp.record('spec 7.2: a host can close a period with nothing booked in it',
+  (select count(*) = 1 from public.availability_blocks
+    where id = '90000000-0000-4000-8000-000000000001'));
+
+-- The other direction, which has always held: the block now stops new bookings.
+select pg_temp.expect_failure(
+  'spec 10: a closed period cannot be booked',
+  $$insert into public.bookings (
+      listing_id, seeker_id, host_id, start_time, end_time,
+      subtotal, service_fee, total, host_payout, status
+    ) values (
+      '10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000005',
+      '00000000-0000-4000-8000-000000000003',
+      now() + interval '9 days 1 hour', now() + interval '9 days 3 hours',
+      20000, 3000, 23000, 20000, 'pending_payment')$$,
+  'marked this period unavailable');
+
+-- Removed again so the block does not sit across a window later checks book into. Reopening is
+-- a real host action, not only tidy-up, so exercising the delete here is worth the line.
+delete from public.availability_blocks where id = '90000000-0000-4000-8000-000000000001';
+
+-- Completed stays are deliberately NOT checked by the guard: a host tidying up old dates should
+-- not be stopped by a stay that already happened.
+insert into public.bookings (
+  id, listing_id, seeker_id, host_id, start_time, end_time,
+  subtotal, service_fee, total, host_payout, status
+) values (
+  '80000000-0000-4000-8000-000000000014',
+  '10000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000004',
+  '00000000-0000-4000-8000-000000000003',
+  now() - interval '20 days 2 hours', now() - interval '20 days',
+  20000, 3000, 23000, 20000, 'pending_payment'
+);
+update public.bookings set status = 'confirmed'
+ where id = '80000000-0000-4000-8000-000000000014';
+update public.bookings set status = 'completed'
+ where id = '80000000-0000-4000-8000-000000000014';
+
+insert into public.availability_blocks (id, listing_id, start_time, end_time, reason)
+values ('90000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000006',
+        now() - interval '20 days 3 hours', now() - interval '19 days', 'Tidying up');
+
+select pg_temp.record('a stay that already happened does not block closing that date',
+  (select count(*) = 1 from public.availability_blocks
+    where id = '90000000-0000-4000-8000-000000000002'));
+
+delete from public.availability_blocks where id = '90000000-0000-4000-8000-000000000002';
+
+-- ---------------------------------------------------------------------------
 -- A failed payout must not strand the money (spec 6.3 step 3, 7.3)
 -- ---------------------------------------------------------------------------
 --

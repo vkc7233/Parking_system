@@ -283,9 +283,6 @@ Being straight with you, so nothing surprises you later:
   launch, but there are no email receipts.
 - **The map on the listing form is coordinate capture, not a draggable pin.** A host types or
   geocodes an address rather than dragging a marker.
-- **`availability_blocks` has no UI.** The database enforces host-declared unavailable periods
-  and there is no screen to create one — a host can set daily opening hours but cannot block out
-  next Tuesday.
 - **No in-app support inbox.** The "Get help" link opens WhatsApp to the number in
   [`platform.ts`](../packages/config/src/platform.ts) (`SUPPORT.whatsappNumber`) — **change that
   placeholder before launch** or messages go nowhere.

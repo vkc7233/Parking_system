@@ -2,16 +2,16 @@
 
 Tracks the sprint plan in specification §14. Update the status column as work lands.
 
-| Sprint     | Focus                                                            | Status                      |
-| ---------- | ---------------------------------------------------------------- | --------------------------- |
-| 0 (Week 1) | Foundation                                                       | **Complete** — see below    |
-| 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | **Complete** — see below    |
-| 2 (Week 3) | Host Listing Agreement e-signature, Admin approval queue         | **Complete** — see below    |
-| 3 (Week 4) | Map + list search, filters, listing detail                       | **Complete** — see below    |
-| 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | **Complete** — see below    |
-| 5 (Week 6) | Notifications, My Bookings, cancellation + refund, rate & review | **Complete** — see below    |
-| 6 (Week 7) | Admin dashboard, user management, disputes, payout triggering    | **Complete** — see below    |
-| 7 (Week 8) | QA bug bash, legal pages, analytics verification, launch         | Not started                 |
+| Sprint     | Focus                                                            | Status                   |
+| ---------- | ---------------------------------------------------------------- | ------------------------ |
+| 0 (Week 1) | Foundation                                                       | **Complete** — see below |
+| 1 (Week 2) | Host onboarding, create/edit listing, photo upload               | **Complete** — see below |
+| 2 (Week 3) | Host Listing Agreement e-signature, Admin approval queue         | **Complete** — see below |
+| 3 (Week 4) | Map + list search, filters, listing detail                       | **Complete** — see below |
+| 4 (Week 5) | Slot selection, availability, Razorpay Checkout, access pass     | **Complete** — see below |
+| 5 (Week 6) | Notifications, My Bookings, cancellation + refund, rate & review | **Complete** — see below |
+| 6 (Week 7) | Admin dashboard, user management, disputes, payout triggering    | **Complete** — see below |
+| 7 (Week 8) | QA bug bash, legal pages, analytics verification, launch         | Not started              |
 
 ## Sprint 0 — delivered
 
@@ -109,6 +109,12 @@ to a listing submitted for approval.
 - **Create / edit listing** — full form with address lookup, spot type, capacity, hourly price
   and optional daily cap, availability hours and house rules. Saved as a draft first; nothing is
   visible to anyone else until it is submitted and approved.
+- **Closed periods** — a host closes a date range on **Calendar → Closed periods** (spec §7.2,
+  §10). Opening hours answer "when am I normally open"; this answers "I am away next Tuesday",
+  which hours cannot express. The database refuses a block covering a booking the seeker has
+  already paid for and names the reference, so the host cancels that booking first rather than
+  leaving someone to arrive at a space the host thinks is shut. Times are read and displayed in
+  Asia/Kolkata regardless of the host's device, so a host abroad reads back what they typed.
 - **Photo upload** — browser-direct to Supabase Storage (a server action body is capped at 1MB
   and photos are allowed 5MB), then recorded by a server action that re-checks the path. Cover
   photo, removal, and position re-packing so a deletion cannot collide with the next insert.
@@ -333,7 +339,7 @@ Two defects this found, neither of which typecheck or unit tests could have:
 
 - **The earnings query crashed on every host.** PostgREST decides an embed's shape from the
   constraint behind it: `disputes.booking_id` is not unique so it returns an array, but
-  `payout_bookings.booking_id` *is* unique — that is the double-pay guard — so it returns an
+  `payout_bookings.booking_id` _is_ unique — that is the double-pay guard — so it returns an
   object or `null`. Reading `.length` off it threw.
 - **No refund could be processed locally.** The fake payments adapter holds its state in
   memory, so any payment made before the last dev-server reload was unknown to it and every
@@ -408,7 +414,7 @@ single listing ranks for nothing on its own.
 ### Two defects the acceptance criteria caught
 
 - **The CSV did not reconcile with the dashboard**, which is precisely what §7.3 requires. The
-  screen defaulted its end date to *now* while the download link carried today's date, which the
+  screen defaulted its end date to _now_ while the download link carried today's date, which the
   route parsed as end-of-day — so a booking later that evening appeared in the export and not in
   the totals it was supposed to match. The period, the status filter and the query now live in
   one module both consumers import.
@@ -432,7 +438,7 @@ declarations at the top of `globals.css` are what make the shared component libr
 ### Error tracking (§7.4)
 
 §7.4 asks for "automatic capture of application errors in production". The word doing the work
-is *automatic*: reporting from each `catch` only ever covers the failures someone remembered to
+is _automatic_: reporting from each `catch` only ever covers the failures someone remembered to
 wrap. Capture is wired to Next's `onRequestError` instrumentation hook instead, which sees every
 uncaught error from server components, server actions, route handlers and middleware alike.
 
@@ -488,20 +494,20 @@ none of which broke anything visibly.
 
 ### Fixed
 
-| Failure | Criterion it broke |
-| --- | --- |
-| A host could not pause, reprice or edit a live listing — RLS required `approved_by is null` and approval sets it | §7.2 "pausing a listing immediately removes it from Seeker search results"; A14 |
-| A booking refunded through a dispute was still paid to the host — the platform paid both sides | §7.2 "earnings total always matches the sum of completed, non-refunded bookings" |
+| Failure                                                                                                                                              | Criterion it broke                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| A host could not pause, reprice or edit a live listing — RLS required `approved_by is null` and approval sets it                                     | §7.2 "pausing a listing immediately removes it from Seeker search results"; A14            |
+| A booking refunded through a dispute was still paid to the host — the platform paid both sides                                                       | §7.2 "earnings total always matches the sum of completed, non-refunded bookings"           |
 | Nothing ever moved a booking to `completed`; the sweeps were scheduled only in a README sentence, so no review ever opened and no host was ever paid | §7.1 "a completed booking correctly moves from upcoming to past automatically at end time" |
-| Published opening hours were never enforced — a 02:00 booking was accepted on an 07:00–23:30 listing | §7.2 available hours |
-| Money was summed by fetching rows, which PostgREST truncates at 1000 silently | §7.3 export reconciliation; §12 volumes |
-| "Paid out so far" counted payouts that had **failed** | §7.2 earnings |
-| No admin screen showed booking status with the provider payment reference; no admin could cancel | §7.3 "every booking's status and payment reference visible from one screen" |
-| `/host/suspended` did not exist, so a suspended host got a 404 on every host page | §7.3 |
-| No support contact existed, while the Terms claimed one was "linked from the app" | §7.1 basic support contact |
-| Client-side errors reached no tracker; `assertProvidersConfigured()` was never called | §7.4 error tracking |
-| The booking page threw once a booking had a second dispute | — |
-| Checkout had no legal links; the host calendar showed no past bookings; no min-price filter or sort control | §7.4 legal; §7.2 calendar; §7.1 filters |
+| Published opening hours were never enforced — a 02:00 booking was accepted on an 07:00–23:30 listing                                                 | §7.2 available hours                                                                       |
+| Money was summed by fetching rows, which PostgREST truncates at 1000 silently                                                                        | §7.3 export reconciliation; §12 volumes                                                    |
+| "Paid out so far" counted payouts that had **failed**                                                                                                | §7.2 earnings                                                                              |
+| No admin screen showed booking status with the provider payment reference; no admin could cancel                                                     | §7.3 "every booking's status and payment reference visible from one screen"                |
+| `/host/suspended` did not exist, so a suspended host got a 404 on every host page                                                                    | §7.3                                                                                       |
+| No support contact existed, while the Terms claimed one was "linked from the app"                                                                    | §7.1 basic support contact                                                                 |
+| Client-side errors reached no tracker; `assertProvidersConfigured()` was never called                                                                | §7.4 error tracking                                                                        |
+| The booking page threw once a booking had a second dispute                                                                                           | —                                                                                          |
+| Checkout had no legal links; the host calendar showed no past bookings; no min-price filter or sort control                                          | §7.4 legal; §7.2 calendar; §7.1 filters                                                    |
 
 Eleven regression checks were added to `supabase/tests/schema_checks.sql` (70 total). Every one
 of these defects passed a green build, so the checks are the point, not the fixes.
