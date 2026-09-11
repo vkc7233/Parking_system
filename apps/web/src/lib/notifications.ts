@@ -44,12 +44,17 @@ export async function notify(input: NotifyInput): Promise<void> {
       ...(env.MSG91_SENDER_ID ? { MSG91_SENDER_ID: env.MSG91_SENDER_ID } : {}),
       ...(env.MSG91_OTP_TEMPLATE_ID ? { MSG91_OTP_TEMPLATE_ID: env.MSG91_OTP_TEMPLATE_ID } : {}),
       ...(env.MSG91_WHATSAPP_NUMBER ? { MSG91_WHATSAPP_NUMBER: env.MSG91_WHATSAPP_NUMBER } : {}),
-      ...(env.MSG91_SMS_TEMPLATE_IDS
-        ? { MSG91_SMS_TEMPLATE_IDS: env.MSG91_SMS_TEMPLATE_IDS }
-        : {}),
+      ...(env.MSG91_SMS_TEMPLATE_IDS ? { MSG91_SMS_TEMPLATE_IDS: env.MSG91_SMS_TEMPLATE_IDS } : {}),
       ...(env.MSG91_WHATSAPP_TEMPLATES
         ? { MSG91_WHATSAPP_TEMPLATES: env.MSG91_WHATSAPP_TEMPLATES }
         : {}),
+      // Email comes from a different provider to SMS and WhatsApp (spec §9.9). The factory
+      // returns no sender when it is unconfigured, and the email channel then fails loudly in
+      // the log rather than reporting a delivery that never happened.
+      ...(env.EMAIL_PROVIDER ? { EMAIL_PROVIDER: env.EMAIL_PROVIDER } : {}),
+      ...(env.RESEND_API_KEY ? { RESEND_API_KEY: env.RESEND_API_KEY } : {}),
+      ...(env.EMAIL_FROM ? { EMAIL_FROM: env.EMAIL_FROM } : {}),
+      ...(env.EMAIL_REPLY_TO ? { EMAIL_REPLY_TO: env.EMAIL_REPLY_TO } : {}),
     });
 
     const result = await adapter.send({

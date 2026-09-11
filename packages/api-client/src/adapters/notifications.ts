@@ -96,11 +96,42 @@ export const TEMPLATE_BODIES: Record<NotificationTemplate, string> = {
   review_request: 'How was your parking at {{listing}}? Leave a rating to help other drivers.',
 };
 
+/**
+ * Email subject lines.
+ *
+ * Separate from the bodies because a subject is not a truncated first sentence: it is read in a
+ * list, next to fifty other subjects, often on a lock screen. Each one leads with what happened
+ * and carries the booking reference, so a seeker searching their inbox for "PK-" finds every mail
+ * about that stay.
+ */
+export const TEMPLATE_SUBJECTS: Record<NotificationTemplate, string> = {
+  booking_confirmed: 'Parking confirmed - {{reference}}',
+  booking_reminder: 'Your parking starts soon - {{reference}}',
+  booking_cancelled: 'Booking cancelled - {{reference}}',
+  booking_refunded: 'Refund on its way - {{reference}}',
+  listing_approved: 'Your listing is live - {{listing}}',
+  listing_rejected: 'Your listing needs a change - {{listing}}',
+  payout_processed: 'Payout sent - {{amount}}',
+  review_request: 'How was your parking at {{listing}}?',
+};
+
+export function renderSubject(
+  template: NotificationTemplate,
+  variables: Record<string, string>,
+): string {
+  return fill(TEMPLATE_SUBJECTS[template], variables);
+}
+
 export function renderTemplate(
   template: NotificationTemplate,
   variables: Record<string, string>,
 ): string {
-  return TEMPLATE_BODIES[template].replace(/\{\{(\w+)\}\}/g, (_match, key: string) =>
+  return fill(TEMPLATE_BODIES[template], variables);
+}
+
+/** Leaves an unknown placeholder visible rather than blanking it: a gap reads as a bug, and is. */
+function fill(source: string, variables: Record<string, string>): string {
+  return source.replace(/\{\{(\w+)\}\}/g, (_match, key: string) =>
     key in variables ? (variables[key] as string) : `{{${key}}}`,
   );
 }

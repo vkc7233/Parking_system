@@ -90,6 +90,19 @@ const serverSchema = z.object({
   CRON_SECRET: z.string().optional(),
   MSG91_SMS_TEMPLATE_IDS: z.string().optional(),
   MSG91_WHATSAPP_TEMPLATES: z.string().optional(),
+
+  /*
+   * Transactional email (spec §7.1, §9.9). A different provider from MSG91 on purpose - SMS and
+   * WhatsApp come from one vendor account and email from another.
+   *
+   * Unset means the email channel fails and says so in `notification_log`. That is the honest
+   * default: a silent no-op would report every receipt as delivered while none was sent.
+   */
+  EMAIL_PROVIDER: z.enum(['resend', 'fake']).optional(),
+  RESEND_API_KEY: z.string().optional(),
+  /** e.g. `Parking Marketplace <bookings@yourdomain.in>` - the domain must be verified at Resend. */
+  EMAIL_FROM: z.string().optional(),
+  EMAIL_REPLY_TO: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;

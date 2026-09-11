@@ -1,8 +1,4 @@
-import type {
-  AnalyticsAdapter,
-  AnalyticsEvent,
-  AnalyticsProperties,
-} from './analytics';
+import type { AnalyticsAdapter, AnalyticsEvent, AnalyticsProperties } from './analytics';
 
 export interface RecordedEvent {
   distinctId: string;
@@ -41,10 +37,7 @@ export class FakeAnalyticsAdapter implements AnalyticsAdapter {
     });
   }
 
-  async identify(input: {
-    distinctId: string;
-    traits: AnalyticsProperties;
-  }): Promise<void> {
+  async identify(input: { distinctId: string; traits: AnalyticsProperties }): Promise<void> {
     this.identities.set(input.distinctId, {
       ...this.identities.get(input.distinctId),
       ...input.traits,

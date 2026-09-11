@@ -5,11 +5,14 @@
  * so `sendOtp` here is the function that hook calls - one provider account, one integration.
  *
  * Transactional email is a separate provider (spec 9.9 says "a standard transactional email
- * provider"); until one is chosen, the email channel is reported as failed rather than
- * silently dropped, so the notification log shows the gap instead of hiding it.
+ * provider"), so it is injected rather than implemented here - see `email.ts`. When none is
+ * configured the email channel is reported as failed rather than silently dropped, so the
+ * notification log shows the gap instead of hiding it.
  */
+import type { EmailSender } from './email';
 import {
   NotificationAdapterError,
+  renderSubject,
   renderTemplate,
   TEMPLATE_CHANNELS,
   type ChannelResult,
@@ -31,6 +34,8 @@ export interface Msg91Config {
   whatsappNumber?: string;
   whatsappTemplateNames?: Partial<Record<NotificationTemplate, string>>;
   apiBase?: string;
+  /** Transactional email, from a different provider. Absent means the channel is unavailable. */
+  email?: EmailSender;
 }
 
 export class Msg91NotificationsAdapter implements NotificationsAdapter {
@@ -143,12 +148,37 @@ export class Msg91NotificationsAdapter implements NotificationsAdapter {
       };
     }
 
-    // Email: no provider selected yet (spec 9.9). Reported, not silently swallowed, so the
-    // gap is visible in notification_log rather than looking like a delivered message.
-    throw new NotificationAdapterError(
-      `Email provider not configured; would have sent: ${renderTemplate(template, variables)}`,
-      'provider_error',
-    );
+    // Email.
+    if (!this.config.email) {
+      // Reported, not silently swallowed, so the gap is visible in notification_log rather than
+      // looking like a delivered message.
+      throw new NotificationAdapterError(
+        `Email provider not configured; would have sent: ${renderTemplate(template, variables)}`,
+        'provider_error',
+      );
+    }
+
+    // An account with no email address is the ordinary case, not a fault: sign-up is by phone
+    // and the address is optional. It still fails the channel rather than reporting a send that
+    // never happened - the SMS and WhatsApp channels carry the message.
+    if (!recipient.email) {
+      throw new NotificationAdapterError(
+        'No email address on file for this user',
+        'invalid_recipient',
+      );
+    }
+
+    const sent = await this.config.email.send({
+      to: recipient.email,
+      subject: renderSubject(template, variables),
+      text: renderTemplate(template, variables),
+    });
+
+    return {
+      channel,
+      status: 'sent',
+      ...(sent.providerMessageId ? { providerMessageId: sent.providerMessageId } : {}),
+    };
   }
 
   async sendOtp(phone: string, code: string): Promise<ChannelResult> {

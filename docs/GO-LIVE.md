@@ -17,7 +17,8 @@ do later can shorten them.
 | 2   | **WhatsApp Business API + template approval** | MSG91 dashboard → WhatsApp                                        | **1–2 weeks**              |
 | 3   | **Razorpay merchant account (KYC)**           | [dashboard.razorpay.com](https://dashboard.razorpay.com)          | 2–5 working days           |
 | 4   | **RazorpayX Payouts activation**              | Razorpay dashboard → RazorpayX                                    | Separate approval, ~1 week |
-| 5   | **Legal review of the three policy pages**    | Your counsel                                                      | Depends on them            |
+| 5   | **Email sending-domain verification**         | [resend.com](https://resend.com) → Domains                        | Minutes to a few hours     |
+| 6   | **Legal review of the three policy pages**    | Your counsel                                                      | Depends on them            |
 
 Nothing else on this list is blocked by anyone but you.
 
@@ -170,7 +171,56 @@ provider chosen (Resend, SES, Postmark) and an adapter written.
 
 ---
 
-## 4. Google Maps — real tiles
+## 4. Transactional email — receipts by mail
+
+§7.1 asks for "SMS/WhatsApp + email". SMS and WhatsApp come from MSG91; email is a separate
+provider, and the code ships with [Resend](https://resend.com).
+
+**Until you do this, email fails.** Not silently — every attempt is written to
+`notification_log` with the reason, so the gap is visible rather than invisible. SMS and WhatsApp
+still carry the message, so nothing is lost; recipients just get no email copy.
+
+1. Create an account at **https://resend.com/signup** (free tier is 3,000 emails/month, enough
+   for a pilot).
+2. Go to **Domains → Add Domain** and enter the domain you send from, e.g. `yourdomain.in`.
+3. Resend shows DNS records (an MX, a `TXT` for SPF, and `TXT` records for DKIM). Add them at
+   your domain registrar, then click **Verify**. This usually takes minutes, occasionally an
+   hour.
+
+   > You cannot skip this. Sending from an unverified domain is rejected with 403, and the log
+   > will read `Resend responded 403: The domain is not verified`.
+
+4. Go to **API Keys → Create API Key**, permission **Sending access**, and copy it. It starts
+   `re_` and is shown once.
+5. Set:
+
+```bash
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_xxxxxxxxxxxx
+EMAIL_FROM=Parking Marketplace <bookings@yourdomain.in>
+EMAIL_REPLY_TO=help@yourdomain.in
+```
+
+`EMAIL_FROM` must use the domain you verified in step 3. `EMAIL_REPLY_TO` is optional but worth
+setting — replies to a `bookings@` address otherwise go nowhere.
+
+**Who gets email:** only users who have added an address. Sign-up is by phone and the address is
+optional (**Account → Profile and settings → Email**), so a booking confirmation for someone who
+never added one shows `email / failed / No email address on file` in the log. That is expected,
+not a fault.
+
+**Which events send email:** booking confirmed, booking cancelled, booking refunded, and payout
+processed. Reminders and review requests are WhatsApp-only, to keep per-message cost down. The
+map is `TEMPLATE_CHANNELS` in
+[`notifications.ts`](../packages/api-client/src/adapters/notifications.ts).
+
+**To switch providers** (Postmark, SES, Brevo), implement `EmailSender` in
+[`email.ts`](../packages/api-client/src/adapters/email.ts) — one method, one HTTPS POST — and add
+it to `createEmailSender`. Nothing else in the product knows which provider sends email.
+
+---
+
+## 5. Google Maps — real tiles
 
 **What is already built:** geocoding, autocomplete, and a real Google map that replaces the drawn
 one automatically when a key is present.
@@ -199,7 +249,7 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSy...
 
 ---
 
-## 5. Scheduling — two places, not one
+## 6. Scheduling — two places, not one
 
 **Already scheduled inside Postgres** (nothing to do): completing elapsed bookings and expiring
 unpaid holds, both running every minute via `pg_cron`. Confirm after deploy with:
@@ -224,7 +274,7 @@ sender id is a spam cannon.
 
 ---
 
-## 6. Error tracking
+## 7. Error tracking
 
 1. Create a Sentry project (platform: Next.js).
 2. Copy the DSN and set `NEXT_PUBLIC_SENTRY_DSN=https://xxx@oyyy.ingest.sentry.io/zzz`.
@@ -233,7 +283,7 @@ sender id is a spam cannon.
 
 ---
 
-## 7. Legal — before go-live, not after
+## 8. Legal — before go-live, not after
 
 The three pages exist and are linked from the footer, the booking form and the checkout screen.
 **They are drafts and have not been reviewed by counsel.**
@@ -248,7 +298,7 @@ they are commercial decisions, not technical ones.
 
 ---
 
-## 8. Other environment variables
+## 9. Other environment variables
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://YOUR-DOMAIN     # sitemap and social cards need absolute URLs
@@ -261,7 +311,7 @@ holding it can mint a valid parking pass.
 
 ---
 
-## 9. Before you announce it
+## 10. Before you announce it
 
 - [ ] One real ₹1 booking, end to end, on a real phone
 - [ ] The host scans that pass at **Host → Check a pass**
@@ -279,8 +329,6 @@ holding it can mint a valid parking pass.
 
 Being straight with you, so nothing surprises you later:
 
-- **No transactional email provider.** Nothing routes to email today, so it does not block
-  launch, but there are no email receipts.
 - **No in-app support inbox.** The "Get help" link opens WhatsApp to the number in
   [`platform.ts`](../packages/config/src/platform.ts) (`SUPPORT.whatsappNumber`) — **change that
   placeholder before launch** or messages go nowhere.

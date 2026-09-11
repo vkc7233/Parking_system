@@ -47,10 +47,7 @@ export class PostHogAnalyticsAdapter implements AnalyticsAdapter {
     });
   }
 
-  async identify(input: {
-    distinctId: string;
-    traits: AnalyticsProperties;
-  }): Promise<void> {
+  async identify(input: { distinctId: string; traits: AnalyticsProperties }): Promise<void> {
     await this.post('/capture/', {
       api_key: this.apiKey,
       event: '$identify',

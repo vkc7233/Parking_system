@@ -549,3 +549,67 @@ each is already written and tested against a fake.
 - **Refunds are netted off the host's share**, not split between the host payout and the
   platform fee. Conservative and exact for the only flow that refunds a completed booking; a
   partial refund meant to come out of the fee alone would need the split recorded on the booking.
+
+---
+
+## Blocked features completed, 11 September 2026
+
+The 9 September audit above listed four Must features as blocked. Three of the four were not
+actually blocked on a vendor — they were blocked on code nobody had written — and are now done.
+The audit section is left as it was written; this records what changed after it.
+
+### A failed payout no longer strands the host's money
+
+`unpaid_host_earnings` excludes any booking attached to a payout **regardless of that payout's
+status**. Correct while a failed transfer is unresolved; catastrophic without a way out. Measured
+in a rolled-back transaction before the fix: a host owed 54000 paise, one payout marked `failed`
+with its line item attached — `unpaid_host_earnings` returned nothing, and
+`hosts_with_unpaid_earnings` did not list the host at all. The money was invisible on every
+screen, permanently.
+
+`processHostPayout` already promised "an admin retries it explicitly". No such control existed.
+There is now a **Failed transfers** card on `/admin/payouts` with a count on the nav tab, and
+`void_failed_payout` returns the bookings to the queue in one transaction.
+
+Retrying the same payout row is impossible by design and the code now says so: the row id is the
+RazorpayX idempotency key, so a repeat call replays the stored failure. Paying again is a new
+payout row with a new key, re-checked against eligibility, the minimum and the bank account.
+
+### Hosts can close a date
+
+`availability_blocks` had been honoured by the booking trigger, the slot function and search since
+the first listings migration, and nothing ever wrote to it. **Calendar → Closed periods** does.
+
+The database gap that only mattered once a screen existed: blocks stopped new bookings, and
+nothing stopped a block covering a booking that already existed. A trigger now refuses that and
+names the booking reference. Completed stays are exempt, so old dates can still be tidied up.
+
+Times are read and displayed in `Asia/Kolkata` rather than the browser's zone — the host most
+likely to need this screen is the one who is abroad. The seed had the same bug: `date_trunc('day',
+now())` truncates to midnight UTC, so the seeded maintenance window read as 2:30pm–11:30pm.
+
+### The listing form has a map pin (§7.2, Must)
+
+Previously coordinate capture only. A geocoder lands on a plot centroid or the road frontage, and
+a parking entrance is often neither — sixty metres and one turn away, which is the difference
+between a seeker arriving and a seeker phoning the host.
+
+Dragging never re-runs the geocoder: reverse geocoding is billed per request, a drag emits many,
+and it would overwrite a street address the host refined by hand. **Verified only on the no-key
+path locally** — the map itself needs a billable Maps key.
+
+### Transactional email exists (§7.1, §9.9, Must)
+
+The audit's "there is no transactional email provider at all" is fixed. `EmailSender` is a
+one-method interface with a Resend implementation, injected into the notification adapters rather
+than folded into MSG91, because it genuinely is a different vendor account.
+
+Verified end to end on the running app: a real booking wrote
+`email / booking_confirmed / sent / email_fake_1` to `notification_log`, where the provider id
+comes from the email sender rather than the notification adapter — before this it read
+`failed / Email provider not configured`.
+
+The fake notification adapter accepts a real email sender on purpose. DLT and WhatsApp approval
+take one to three weeks; verifying an email sending domain takes hours. `EMAIL_PROVIDER=resend`
+with notifications still faked sends real email through the real path weeks before SMS can be
+tested at all.
