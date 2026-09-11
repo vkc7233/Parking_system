@@ -10,14 +10,18 @@ import {
   suggestAddresses,
   type ResolvedAddress,
 } from './location-actions';
+import { PinMap } from './pin-map';
 
 /**
  * Address search and coordinate capture for a listing (spec §6.2 step 3).
  *
- * The visual map pin lands in Sprint 3, alongside the Maps JavaScript API that the Seeker
- * search needs — there is no point loading (and paying for) a map here before then. What this
- * does provide is the thing the schema actually requires: an exact, confirmed lat/lng, chosen
- * from a real address lookup rather than typed by hand.
+ * Two steps, because they answer different questions. The address lookup finds the building and
+ * fills in the city and pincode. The pin below it, once an address is chosen, corrects where the
+ * car actually goes in — geocoders land on a plot centroid or the road frontage, and a parking
+ * entrance is often neither. Seekers navigate to the pin.
+ *
+ * The map appears only when a Maps key is configured. Without one the lookup still sets exact
+ * coordinates and the form behaves as it always has.
  *
  * A session token is generated per picker instance and passed to both autocomplete and place
  * details. Google bills those as ONE session when the token is present and per-request when it
@@ -37,15 +41,28 @@ export type LocationValue = ResolvedAddress;
 export function LocationPicker({
   initial,
   fieldErrors,
+  mapsApiKey,
 }: {
   initial: LocationValue | null;
   fieldErrors: Record<string, string> | undefined;
+  /** Absent when Maps is not configured; the picker then renders without a map. */
+  mapsApiKey?: string | undefined;
 }) {
   const baseId = useId();
   const [query, setQuery] = useState(initial?.formattedAddress ?? '');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [resolved, setResolved] = useState<LocationValue | null>(initial);
   const [isPending, startTransition] = useTransition();
+
+  /*
+   * Where the pin is, which is not always where the geocoder put it.
+   *
+   * Held apart from `resolved` so the two are not confused: `resolved.location` is what the
+   * address lookup returned and is the baseline a drag is measured against, while this is what
+   * the form actually posts. Choosing a new address resets it; dragging does not touch the
+   * address.
+   */
+  const [pin, setPin] = useState<LatLng | null>(initial?.location ?? null);
 
   // One token for the life of this picker, which is what makes the lookups a single billed
   // session rather than one charge per keystroke.
@@ -76,6 +93,7 @@ export function LocationPicker({
       const result = await resolvePlace(placeId, sessionToken);
       if (result) {
         setResolved(result);
+        setPin(result.location);
         setQuery(result.formattedAddress);
         setSuggestions([]);
       }
@@ -90,12 +108,13 @@ export function LocationPicker({
       const result = await geocodeAddress(query);
       if (result) {
         setResolved(result);
+        setPin(result.location);
         setSuggestions([]);
       }
     });
   }
 
-  const coordinates: LatLng | null = resolved?.location ?? null;
+  const coordinates: LatLng | null = pin ?? resolved?.location ?? null;
 
   return (
     <div className="space-y-3">
@@ -154,6 +173,15 @@ export function LocationPicker({
           Pick an address above so seekers can find this spot.
         </p>
       )}
+
+      {mapsApiKey && coordinates ? (
+        <PinMap
+          apiKey={mapsApiKey}
+          position={coordinates}
+          geocoded={resolved?.location ?? null}
+          onChange={setPin}
+        />
+      ) : null}
 
       {/* The form posts these, not the search box: a typed string is not a location. */}
       <input type="hidden" name="lat" value={coordinates?.lat ?? ''} />

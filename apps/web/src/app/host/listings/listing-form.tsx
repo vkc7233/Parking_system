@@ -47,9 +47,12 @@ export interface ListingDefaults {
 export function ListingForm({
   defaults,
   submitLabel,
+  mapsApiKey,
 }: {
   defaults: ListingDefaults;
   submitLabel: string;
+  /** Passed through to the pin map; absent when Maps is not configured. */
+  mapsApiKey?: string | undefined;
 }) {
   const [state, action, pending] = useActionState(saveListing, initialState);
   const errors = state.fieldErrors;
@@ -68,7 +71,7 @@ export function ListingForm({
             htmlFor="title"
             label="Listing name"
             required
-            hint="Short and specific, e.g. “Covered slot off CG Road”."
+            hint="Short and specific, e.g. “Covered slot off FC Road”."
             error={errors?.['title']}
           >
             <Input
@@ -142,7 +145,11 @@ export function ListingForm({
           description="Seekers search by distance from where they are going."
         />
         <CardBody>
-          <LocationPicker initial={defaults.location} fieldErrors={errors} />
+          <LocationPicker
+            initial={defaults.location}
+            fieldErrors={errors}
+            mapsApiKey={mapsApiKey}
+          />
         </CardBody>
       </Card>
 

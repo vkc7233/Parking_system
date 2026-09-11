@@ -109,6 +109,13 @@ to a listing submitted for approval.
 - **Create / edit listing** — full form with address lookup, spot type, capacity, hourly price
   and optional daily cap, availability hours and house rules. Saved as a draft first; nothing is
   visible to anyone else until it is submitted and approved.
+- **Map pin** (spec §7.2 "Address (map pin)") — once an address is chosen, a draggable pin on
+  real tiles, because a geocoder lands on a plot centroid or the road frontage and a parking
+  entrance is often neither. Dragging moves only the coordinates, never the address text, and
+  never re-runs the geocoder: reverse geocoding is billed per request, a drag emits many, and it
+  would overwrite a street address the host refined by hand. Renders only when
+  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is set; without it the address lookup still sets exact
+  coordinates and the form is unchanged.
 - **Closed periods** — a host closes a date range on **Calendar → Closed periods** (spec §7.2,
   §10). Opening hours answer "when am I normally open"; this answers "I am away next Tuesday",
   which hours cannot express. The database refuses a block covering a booking the seeker has

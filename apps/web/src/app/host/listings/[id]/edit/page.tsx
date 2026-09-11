@@ -5,6 +5,7 @@ import type { ListingStatus, SpotType } from '@parking/types';
 import { Card, CardBody, CardHeader, FormSuccess, ListingStatusBadge } from '@parking/ui';
 import { getOnboardingState, requireHost } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { clientEnv } from '@/lib/env';
 import { ListingForm } from '../../listing-form';
 import { ListingActionsBar } from '../../listing-actions-bar';
 import { PhotoUploader, type ExistingPhoto } from '../../photo-uploader';
@@ -151,6 +152,7 @@ export default async function EditListingPage({
       ) : null}
 
       <ListingForm
+        mapsApiKey={clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
         submitLabel="Save changes"
         defaults={{
           id: listing.id,

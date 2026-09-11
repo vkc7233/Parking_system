@@ -281,8 +281,6 @@ Being straight with you, so nothing surprises you later:
 
 - **No transactional email provider.** Nothing routes to email today, so it does not block
   launch, but there are no email receipts.
-- **The map on the listing form is coordinate capture, not a draggable pin.** A host types or
-  geocodes an address rather than dragging a marker.
 - **No in-app support inbox.** The "Get help" link opens WhatsApp to the number in
   [`platform.ts`](../packages/config/src/platform.ts) (`SUPPORT.whatsappNumber`) — **change that
   placeholder before launch** or messages go nowhere.

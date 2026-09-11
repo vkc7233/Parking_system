@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireHost } from '@/lib/auth';
+import { clientEnv } from '@/lib/env';
 import { ListingForm } from '../listing-form';
 
 export const metadata = { title: 'List a space' };
@@ -22,6 +23,7 @@ export default async function NewListingPage() {
       </header>
 
       <ListingForm
+        mapsApiKey={clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
         submitLabel="Save and continue"
         defaults={{
           id: null,
