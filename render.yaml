@@ -1,0 +1,87 @@
+# Render Blueprint — temporary demo deployment.
+#
+# One web service running the Next.js app. The database is NOT here: it is a hosted Supabase
+# project (Postgres + PostGIS + Auth + Storage), because the schema depends on PostGIS,
+# row-level security and pg_cron, none of which a plain Render Postgres gives you.
+#
+# Deploy with: Render Dashboard -> New -> Blueprint -> pick this repository.
+# Everything marked `sync: false` is asked for at deploy time and never stored in git.
+#
+# Full walkthrough, including the Supabase half: docs/DEPLOY-RENDER.md
+
+services:
+  - type: web
+    name: parking-marketplace
+    runtime: node
+    # Closest region to the Pune pilot. Oregon/Frankfurt also work; the extra round trip to
+    # Supabase matters more than the one to the browser, so keep both in the same region.
+    region: singapore
+    plan: free
+    branch: main
+
+    # `--prod=false` is not redundant. Render sets NODE_ENV=production, and pnpm then skips
+    # devDependencies - which is where tailwindcss, @tailwindcss/postcss and typescript live.
+    # Without it the build fails inside `next build` with a missing-module error that looks
+    # like a broken lockfile rather than a missing dev dependency.
+    buildCommand: >-
+      corepack enable &&
+      corepack prepare pnpm@10.33.2 --activate &&
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter @parking/web build
+
+    # Invokes Next's own entry point directly rather than going through pnpm or npx, so the
+    # start command does not depend on corepack still being on PATH at runtime.
+    startCommand: cd apps/web && node node_modules/next/dist/bin/next start -p $PORT
+
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+
+      # ---- Supabase (from the hosted project's Settings -> API) --------------------
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      # Server-side only. Never prefix this one NEXT_PUBLIC_ - it bypasses row-level security.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # ---- This deployment's own URL ----------------------------------------------
+      #
+      # Set by hand to https://<your-service>.onrender.com after the first deploy.
+      # Deliberately NOT `fromService: ... property: host`: that yields a bare hostname with no
+      # scheme, and this value is parsed as a URL - it fails validation at boot.
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+
+      # ---- Secrets Render can invent ----------------------------------------------
+      # Signs the QR access pass. Must be at least 32 characters; Render's generated value is.
+      # Changing it later invalidates every pass already issued.
+      - key: ACCESS_PASS_SECRET
+        generateValue: true
+      # Guards /api/cron/notifications. Without it that route 404s to everyone, deliberately.
+      - key: CRON_SECRET
+        generateValue: true
+
+      # ---- Support contact --------------------------------------------------------
+      # A production build REFUSES TO START without this (spec §7.1: a support query must reach
+      # an Admin within five minutes, and the placeholder reaches nobody). Any format works.
+      - key: NEXT_PUBLIC_SUPPORT_WHATSAPP
+        sync: false
+      - key: NEXT_PUBLIC_SUPPORT_EMAIL
+        sync: false
+
+      # ---- Vendors: all fakes until you have the real accounts ---------------------
+      #
+      # Left as fakes on purpose for a demo. Every one of these is a working implementation,
+      # not a stub: payments capture locally, notifications are recorded and shown in
+      # notification_log, and the maps adapter returns real Pune fixtures. The booking loop is
+      # fully exercisable before a single vendor account exists.
+      - key: PAYMENTS_PROVIDER
+        value: fake
+      - key: NOTIFICATIONS_PROVIDER
+        value: fake
+      - key: EMAIL_PROVIDER
+        value: fake
+      - key: NEXT_PUBLIC_MAPS_PROVIDER
+        value: fake
