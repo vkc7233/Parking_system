@@ -102,16 +102,19 @@ This is the one step people miss, and the symptom is that nobody can log in.
 Locally, `supabase/config.toml` maps the seeded phone numbers to fixed codes. Hosted Supabase has
 the same feature in the dashboard.
 
-**Authentication → Sign In / Providers → Phone** → enable it, then find **Test OTP** (you may need
-to expand the provider's settings) and add these pairs:
+**Authentication → Sign In / Providers → Phone** → turn it on. In the provider settings, fill in:
+
+- **Test Phone Numbers and OTPs** — one line, pairs joined with `=` and separated by commas
+  (follow the example shown under the box if it differs):
 
 ```
-919000000001:100001
-919000000002:100002
-919000000003:100003
-919000000004:100004
-919000000005:100005
+919000000001=100001,919000000002=100002,919000000003=100003,919000000004=100004,919000000005=100005
 ```
+
+- **Test OTPs Valid Until** — a date a few weeks ahead. Once it passes, the codes stop working and
+  sign-in fails again.
+
+Then **Save**.
 
 The rule is `1000` plus the last two digits of the number. These short-circuit before any SMS
 provider is called, so no Twilio account is needed and no message is ever sent.
