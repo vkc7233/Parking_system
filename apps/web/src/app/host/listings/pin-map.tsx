@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PILOT_CITY } from '@parking/config';
+import { distanceMeters } from '@parking/core';
 import type { LatLng } from '@parking/types';
 
 /**
@@ -43,19 +44,6 @@ interface GoogleMarker {
 interface GoogleMapsApi {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMap;
   Marker: new (options: Record<string, unknown>) => GoogleMarker;
-}
-
-/** Metres between two points, for telling the host how far they have moved the pin. */
-function metresBetween(a: LatLng, b: LatLng): number {
-  const R = 6_371_000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.sqrt(h)));
 }
 
 export function PinMap({
@@ -165,7 +153,7 @@ export function PinMap({
     );
   }
 
-  const moved = geocoded ? metresBetween(geocoded, position) : 0;
+  const moved = geocoded ? Math.round(distanceMeters(geocoded, position)) : 0;
 
   return (
     <div className="space-y-2">

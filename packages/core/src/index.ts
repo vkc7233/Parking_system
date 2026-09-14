@@ -7,3 +7,4 @@ export * from './holds';
 export * from './payouts';
 export * from './phone';
 export * from './csv';
+export * from './geo';

@@ -13,6 +13,7 @@ import { ServiceUnavailable } from '@/components/service-unavailable';
 import { ListingPhoto } from '@/components/listing-photo';
 import { SearchControls } from './search-controls';
 import { SearchBar } from './search-bar';
+import { NEAR_YOU_FIELD_TEXT, NEAR_YOU_LABEL } from './search-labels';
 import { DestinationChips } from './destination-chips';
 import { ResultMap } from './result-map';
 import { GoogleResultMap } from './google-result-map';
@@ -221,7 +222,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
           <div className="mt-6 rounded-2xl bg-white p-3 shadow-lift ring-1 ring-white/10 sm:mt-8 sm:p-4">
             <SearchBar
-              initialWhere={slug ? label : (params.where ?? '')}
+              initialWhere={
+                slug
+                  ? label
+                  : params.where === NEAR_YOU_LABEL
+                    ? NEAR_YOU_FIELD_TEXT
+                    : (params.where ?? '')
+              }
               initialStart={params.start ?? ''}
               initialEnd={params.end ?? ''}
             />

@@ -3,7 +3,9 @@
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BOOKING, PILOT_CITY } from '@parking/config';
+import { coarsenForSharing, isInServiceArea } from '@parking/core';
 import { Button } from '@parking/ui';
+import { NEAR_YOU_FIELD_TEXT, NEAR_YOU_LABEL } from './search-labels';
 import {
   resolveDestination,
   suggestDestinations,
@@ -62,6 +64,65 @@ export function SearchBar({
   // does not immediately reopen the dropdown underneath the seeker.
   const chosenRef = useRef(initialWhere);
   const [minStart] = useState(() => toLocalInputValue(nextSlot(new Date())));
+
+  /*
+   * "Use my location" (spec §8.1: "Home — map + list search, current location, filters").
+   *
+   * The most natural search a parking app has — "near me, now" — and it was missing: a seeker
+   * standing in Baner had to know to type "Baner". It feeds the same `lat`/`lng` the typed search
+   * already puts in the URL, so the results, the map and a shared link all behave identically.
+   *
+   * Every way it can fail says so. Geolocation fails often and for ordinary reasons — a denied
+   * permission, indoors with no fix, a desktop with no GPS — and a button that silently does
+   * nothing reads as a broken product.
+   */
+  const [locating, setLocating] = useState(false);
+  const [locateMessage, setLocateMessage] = useState<string | null>(null);
+
+  function locateMe() {
+    setLocateMessage(null);
+
+    if (!('geolocation' in navigator)) {
+      setLocateMessage('This browser cannot share your location. Type an area instead.');
+      return;
+    }
+
+    setLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+
+        const here = { lat: position.coords.latitude, lng: position.coords.longitude };
+
+        if (!isInServiceArea(here)) {
+          setLocateMessage(
+            `You look to be outside ${PILOT_CITY.name}, and spaces are only listed there for now. ` +
+              'Pick an area below instead.',
+          );
+          return;
+        }
+
+        const shareable = coarsenForSharing(here);
+        setWhere(NEAR_YOU_FIELD_TEXT);
+        chosenRef.current = NEAR_YOU_FIELD_TEXT;
+        submit({ lat: shareable.lat, lng: shareable.lng, label: NEAR_YOU_LABEL });
+      },
+      (error) => {
+        setLocating(false);
+        setLocateMessage(
+          error.code === error.PERMISSION_DENIED
+            ? 'Location is blocked for this site. Allow it in your browser settings, or type an area.'
+            : error.code === error.TIMEOUT
+              ? 'Finding your location took too long. Try again, or type an area.'
+              : 'Your location is not available right now. Type an area instead.',
+        );
+      },
+      // Coarse is enough - the smallest search radius is 1 km - and asking for high accuracy on
+      // a phone waits for GPS, which indoors can mean never.
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+    );
+  }
 
   useEffect(() => {
     if (where.trim().length < 2 || where === chosenRef.current) {
@@ -135,98 +196,127 @@ export function SearchBar({
     'shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none';
 
   return (
-    <form
-      className="grid gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1.3fr)_auto]"
-      onSubmit={(event) => {
-        event.preventDefault();
+    <div className="space-y-2">
+      <form
+        className="grid gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1.3fr)_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
 
-        // Enter with the dropdown open takes the first match; that is what the seeker means.
-        if (open && suggestions[0]) {
-          choose(suggestions[0]);
-          return;
-        }
-        submit(where.trim() === '' ? { clearPlace: true } : {});
-      }}
-    >
-      <div ref={boxRef} className="relative">
-        <label htmlFor={fieldId} className="sr-only">
-          Where are you going?
-        </label>
-        <input
-          id={fieldId}
-          type="text"
-          value={where}
-          autoComplete="off"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={`${fieldId}-list`}
-          placeholder={`Where in ${PILOT_CITY.name}?`}
-          onChange={(event) => setWhere(event.target.value)}
-          onFocus={() => setOpen(suggestions.length > 0)}
-          className={inputClass}
-        />
+          // Enter with the dropdown open takes the first match; that is what the seeker means.
+          if (open && suggestions[0]) {
+            choose(suggestions[0]);
+            return;
+          }
+          submit(where.trim() === '' ? { clearPlace: true } : {});
+        }}
+      >
+        <div ref={boxRef} className="relative">
+          <label htmlFor={fieldId} className="sr-only">
+            Where are you going?
+          </label>
+          <input
+            id={fieldId}
+            type="text"
+            value={where}
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={`${fieldId}-list`}
+            placeholder={`Where in ${PILOT_CITY.name}?`}
+            onChange={(event) => setWhere(event.target.value)}
+            onFocus={() => setOpen(suggestions.length > 0)}
+            className={inputClass}
+          />
 
-        {open && suggestions.length > 0 ? (
-          <ul
-            id={`${fieldId}-list`}
-            role="listbox"
-            className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
-          >
-            {suggestions.map((suggestion) => (
-              <li key={suggestion.placeId}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={false}
-                  onClick={() => choose(suggestion)}
-                  className="block w-full px-3.5 py-2 text-left hover:bg-slate-50"
-                >
-                  <span className="block text-sm font-medium text-slate-900">
-                    {suggestion.primaryText}
-                  </span>
-                  {suggestion.secondaryText ? (
-                    <span className="block text-xs text-slate-500">{suggestion.secondaryText}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+          {open && suggestions.length > 0 ? (
+            <ul
+              id={`${fieldId}-list`}
+              role="listbox"
+              className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+            >
+              {suggestions.map((suggestion) => (
+                <li key={suggestion.placeId}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    onClick={() => choose(suggestion)}
+                    className="block w-full px-3.5 py-2 text-left hover:bg-slate-50"
+                  >
+                    <span className="block text-sm font-medium text-slate-900">
+                      {suggestion.primaryText}
+                    </span>
+                    {suggestion.secondaryText ? (
+                      <span className="block text-xs text-slate-500">
+                        {suggestion.secondaryText}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+
+        <div>
+          <label htmlFor={`${fieldId}-start`} className="sr-only">
+            Arriving
+          </label>
+          <input
+            id={`${fieldId}-start`}
+            type="datetime-local"
+            value={start}
+            min={minStart}
+            step={BOOKING.slotMinutes * 60}
+            onChange={(event) => setStart(event.target.value)}
+            className={inputClass}
+          />
+        </div>
+
+        <div>
+          <label htmlFor={`${fieldId}-end`} className="sr-only">
+            Leaving
+          </label>
+          <input
+            id={`${fieldId}-end`}
+            type="datetime-local"
+            value={end}
+            min={start || minStart}
+            step={BOOKING.slotMinutes * 60}
+            onChange={(event) => setEnd(event.target.value)}
+            className={inputClass}
+          />
+        </div>
+
+        <Button type="submit" className="h-11" disabled={pending}>
+          {pending ? 'Searching…' : 'Search'}
+        </Button>
+      </form>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          type="button"
+          onClick={locateMe}
+          disabled={locating || pending}
+          className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand-700 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60"
+        >
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none">
+            <circle cx="10" cy="10" r="3" fill="currentColor" />
+            <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+            <path
+              d="M10 1.5v2.5M10 16v2.5M1.5 10h2.5M16 10h2.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          {locating ? 'Finding you…' : 'Use my location'}
+        </button>
+
+        <p aria-live="polite" className="text-sm text-slate-600">
+          {locateMessage}
+        </p>
       </div>
-
-      <div>
-        <label htmlFor={`${fieldId}-start`} className="sr-only">
-          Arriving
-        </label>
-        <input
-          id={`${fieldId}-start`}
-          type="datetime-local"
-          value={start}
-          min={minStart}
-          step={BOOKING.slotMinutes * 60}
-          onChange={(event) => setStart(event.target.value)}
-          className={inputClass}
-        />
-      </div>
-
-      <div>
-        <label htmlFor={`${fieldId}-end`} className="sr-only">
-          Leaving
-        </label>
-        <input
-          id={`${fieldId}-end`}
-          type="datetime-local"
-          value={end}
-          min={start || minStart}
-          step={BOOKING.slotMinutes * 60}
-          onChange={(event) => setEnd(event.target.value)}
-          className={inputClass}
-        />
-      </div>
-
-      <Button type="submit" className="h-11" disabled={pending}>
-        {pending ? 'Searching…' : 'Search'}
-      </Button>
-    </form>
+    </div>
   );
 }

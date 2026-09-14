@@ -91,6 +91,15 @@ export const PILOT_CITY = {
   center: { lat: 18.5308, lng: 73.8475 },
   defaultSearchRadiusMeters: 5_000,
   maxSearchRadiusMeters: 25_000,
+  /*
+   * How far from the centre still counts as "in Pune" for "use my location".
+   *
+   * Wider than the search radius on purpose. Pune's parking pressure extends to the IT corridors
+   * - Hinjewadi and Wagholi are 17-20 km out - and a seeker standing there is exactly who this
+   * pilot is for. 35 km keeps them in while still turning away someone in Lonavala or Mumbai,
+   * who would otherwise be shown an empty results page that reads as a broken product.
+   */
+  serviceAreaRadiusMeters: 35_000,
   defaultMapZoom: 13,
 } as const;
 
