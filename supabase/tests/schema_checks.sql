@@ -305,7 +305,27 @@ select pg_temp.expect_failure(
      where id = '80000000-0000-4000-8000-000000000003'$$,
   'Illegal booking transition');
 
--- A4: a host-blocked window blocks the slot outright.
+/*
+ * A4: a host-blocked window blocks the slot outright.
+ *
+ * The check creates its own block, immediately before booking into it, instead of relying on
+ * the one supabase/seed.sql inserts. It used to rely on the seed, and that failed two ways:
+ *
+ *  - The seed's block is placed relative to when the SEED ran. On any database not reset since,
+ *    it has drifted into the past, and the booking below lands on an unblocked day.
+ *  - The seed places it on an Asia/Kolkata calendar day; this booking uses a UTC one. Between
+ *    18:30 and 24:00 UTC those are different dates, so the check failed in CI for five and a
+ *    half hours of every day - depending on nothing but when the build happened to run.
+ *
+ * Self-contained, it asserts the rule and nothing about the clock. The surrounding transaction
+ * rolls it back.
+ */
+insert into public.availability_blocks (listing_id, start_time, end_time, reason)
+values ('10000000-0000-4000-8000-000000000002',
+        date_trunc('day', now()) + interval '2 days 9 hours',
+        date_trunc('day', now()) + interval '2 days 13 hours',
+        'schema check: blocked window');
+
 select pg_temp.expect_failure(
   'availability: a host-blocked window refuses bookings',
   $$insert into public.bookings (

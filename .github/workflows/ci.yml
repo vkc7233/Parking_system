@@ -113,9 +113,14 @@ jobs:
 
       # The generated types are committed so the verify job type-checks against the same schema
       # a developer had. If they drift, the build is checking something that no longer exists.
+      #
+      # Formatted before comparing, and this is load-bearing. The verify job's format:check
+      # requires the committed file to be Prettier-formatted, and the generator's raw output is
+      # not - so comparing raw output made the two jobs mutually exclusive: any file that passed
+      # one failed the other, and this step failed on every run even when the types were current.
       - name: Assert committed database types are up to date
         run: |
-          pnpm exec supabase gen types typescript --local > /tmp/database.types.ts
+          pnpm exec supabase gen types typescript --local             | pnpm exec prettier --stdin-filepath packages/types/src/database.types.ts             > /tmp/database.types.ts
           if ! diff -q /tmp/database.types.ts packages/types/src/database.types.ts > /dev/null; then
             echo "::error::packages/types/src/database.types.ts is stale - run 'pnpm db:types' and commit"
             diff /tmp/database.types.ts packages/types/src/database.types.ts | head -40

@@ -13,11 +13,27 @@ Two pieces, in this order. The app cannot start without the database, so do Supa
 | Postgres + Auth + Storage | Supabase (free) | Needs PostGIS, row-level security and pg_cron |
 | The Next.js web app       | Render (free)   | —                                             |
 
-> **Before anything:** push your work, or Render will build an older commit.
->
-> ```bash
-> git push origin main
-> ```
+## Before you start
+
+**Three free accounts**, all of which can sign in with GitHub:
+
+| Account  | Sign up                                | Used for                         |
+| -------- | -------------------------------------- | -------------------------------- |
+| GitHub   | You have it — `vkc7233/Parking_system` | Render builds from it            |
+| Supabase | https://supabase.com/dashboard         | Database, sign-in, photo storage |
+| Render   | https://dashboard.render.com           | Runs the web app                 |
+
+**On your machine:** Node 20 and git, which you already use to run the project locally. The
+Supabase CLI comes with the repository, so there is nothing else to install.
+
+**Push your work first**, or Render builds an older commit:
+
+```bash
+git push origin main
+```
+
+The repository's CI (lint, typecheck, tests, formatting, and the 84 database checks) passes on
+the current `main`, so the push should come up green on GitHub.
 
 ---
 
@@ -64,7 +80,8 @@ from step 1.3.
 npx supabase db push
 ```
 
-This applies all 18 migrations. Expect about a minute, and a list of applied filenames.
+This applies every file in `supabase/migrations`, in order. Expect about a minute and a list of
+applied filenames. It asks you to confirm before it writes — type `Y`.
 
 > **If pg_cron errors**, it was not enabled in 1.2. Enable it, then run `db push` again — the
 > migrations are idempotent.
@@ -112,7 +129,18 @@ provider is called, so no Twilio account is needed and no message is ever sent.
 > Messaging Service SID into the provider settings, and still use the test numbers above. The
 > trial is never actually charged because test numbers never reach it.
 
-### 1.6 Copy the three keys
+### 1.6 Tell Supabase Auth where the app lives
+
+**Authentication → URL Configuration**:
+
+- **Site URL**: `https://parking-marketplace.onrender.com` (your real Render URL, once you have it)
+- **Redirect URLs**: add the same URL followed by `/**`
+
+Phone sign-in does not follow a link, so login works without this. It matters for anything Auth
+ever emails, which otherwise points at `localhost:3000`. Come back and correct it after Part 2 if
+your Render URL differs.
+
+### 1.7 Copy the three keys
 
 **Project Settings → API** (newer dashboards call it **API Keys**). You need:
 
@@ -139,9 +167,9 @@ provider is called, so no Twilio account is needed and no message is ever sent.
 
 | Variable                        | Value                                                           |
 | ------------------------------- | --------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Project URL from 1.6                                            |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon public` key from 1.6                                      |
-| `SUPABASE_SERVICE_ROLE_KEY`     | `service_role` key from 1.6                                     |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Project URL from 1.7                                            |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon public` key from 1.7                                      |
+| `SUPABASE_SERVICE_ROLE_KEY`     | `service_role` key from 1.7                                     |
 | `NEXT_PUBLIC_SITE_URL`          | `https://parking-marketplace.onrender.com` — see the note below |
 | `NEXT_PUBLIC_SUPPORT_WHATSAPP`  | **Your own WhatsApp number**, e.g. `+91 98765 43210`            |
 | `NEXT_PUBLIC_SUPPORT_EMAIL`     | Your email                                                      |
@@ -185,27 +213,30 @@ as an environment variable and redeploy.
 Open **Logs**. The app deliberately refuses to boot when it is misconfigured, rather than starting
 and failing later in front of a user. Each message names the variable:
 
-| Log line                                                 | Fix                                                         |
-| -------------------------------------------------------- | ----------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPPORT_WHATSAPP is not set…`               | Set it, then **rebuild** — see below. A restart will not do |
-| `Invalid client environment: NEXT_PUBLIC_SUPABASE_URL…`  | Missing or not a full `https://` URL                        |
-| `Invalid server environment: SUPABASE_SERVICE_ROLE_KEY…` | Missing                                                     |
-| `ACCESS_PASS_SECRET must be at least 32 characters`      | Let Render generate it rather than typing one               |
+| Log line                                                 | Fix                                                       |
+| -------------------------------------------------------- | --------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPPORT_WHATSAPP is not set…`               | Set it, then **rebuild** — see 2.2. A restart will not do |
+| `Invalid client environment: NEXT_PUBLIC_SUPABASE_URL…`  | Missing or not a full `https://` URL                      |
+| `Invalid server environment: SUPABASE_SERVICE_ROLE_KEY…` | Missing                                                   |
+| `ACCESS_PASS_SECRET must be at least 32 characters`      | Let Render generate it rather than typing one             |
 
 ### 2.4 Check it works
 
 Open the Render URL. In order:
 
 1. **The search page lists Pune spaces.** If it is empty, the seed in 1.4 did not run.
-2. **Sign in** as `9000000004` with code `100004`.
-3. **Book something** — pick a listing, a time, and pay. The fake provider captures instantly, and
+2. **Tap "Use my location".** Your browser asks permission. From outside Pune it tells you the pilot
+   is Pune-only, which is the correct answer — so to show it working in a demo, search an area
+   instead, or run the demo from Pune. It needs HTTPS, which Render provides.
+3. **Sign in** as `9000000004` with code `100004`.
+4. **Book something** — pick a listing, a time, and pay. The fake provider captures instantly, and
    you land on a booking page with a QR access pass.
-4. **Sign out, sign in as `9000000003`** (Kiran, a host) → **Calendar** shows the booking you just
+5. **Sign out, sign in as `9000000003`** (Kiran, a host) → **Calendar** shows the booking you just
    made.
-5. **Sign in as `9000000001`** and go to **`/admin`** — reached by typing the URL, never linked.
+6. **Sign in as `9000000001`** and go to **`/admin`** — reached by typing the URL, never linked.
    The dashboard shows live counts and GMV.
 
-If all five work, the demo is ready.
+If all six work, the demo is ready.
 
 ---
 
@@ -234,6 +265,29 @@ The two **database** sweeps do run, because pg_cron lives in Supabase. Confirm w
 ```sql
 select jobname, schedule, active from cron.job;
 ```
+
+### Seeded listings show drawings, not photos
+
+The seed creates photo _records_ but no image files — there are no photographs of real Pune
+properties in the repository to upload, and inventing some would be misleading. Each listing
+shows an illustration of its spot type instead, which is the same fallback a real listing uses
+if its photo fails to load.
+
+For a more convincing demo, add real photos to one or two listings before the call: sign in as
+a host (`9000000002`), open **My listings → Edit**, and upload. They go to Supabase Storage and
+appear immediately.
+
+### Updating it after the first deploy
+
+Render redeploys automatically on every push to `main`:
+
+```bash
+git push origin main
+```
+
+Two exceptions. A changed **`NEXT_PUBLIC_*`** variable needs **Clear build cache & deploy** (2.2).
+A new **migration** is not applied by Render at all — run `npx supabase db push` again from your
+machine, before you push the code that depends on it.
 
 ### What is deliberately fake
 
