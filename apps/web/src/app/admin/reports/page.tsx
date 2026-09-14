@@ -65,8 +65,8 @@ export default async function AdminReportsPage({
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Reports</h1>
         <p className="mt-1 text-slate-600">
-          Bookings and revenue for a date range. A booking counts in the period it was due to
-          start, which is the period the space was occupied.
+          Bookings and revenue for a date range. A booking counts in the period it was due to start,
+          which is the period the space was occupied.
         </p>
       </header>
 

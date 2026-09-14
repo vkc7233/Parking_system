@@ -54,7 +54,11 @@ function parseLocalTime(value: string | undefined): Date | null {
  * arrive from a query string anyone can edit, and a NaN would reach PostGIS as a null and
  * quietly return nothing.
  */
-function resolveCenter(params: SearchParams): { center: LatLng; label: string; slug: string | null } {
+function resolveCenter(params: SearchParams): {
+  center: LatLng;
+  label: string;
+  slug: string | null;
+} {
   const lat = Number(params.lat);
   const lng = Number(params.lng);
 
@@ -88,11 +92,7 @@ function resolveCenter(params: SearchParams): { center: LatLng; label: string; s
  * shareable, survivable across a refresh, and — since this is a server component over publicly
  * readable listings — crawlable, which is what §7.4 asks for.
  */
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const supabase = await createClient();
 
@@ -141,7 +141,8 @@ export default async function HomePage({
       // Unrated listings sort last rather than as zero: "no reviews yet" is not "rated badly",
       // and a new host's space should not be buried before anyone has had the chance to rate it.
       sorted.sort(
-        (a, b) => (b.averageRating ?? -1) - (a.averageRating ?? -1) || a.distanceMeters - b.distanceMeters,
+        (a, b) =>
+          (b.averageRating ?? -1) - (a.averageRating ?? -1) || a.distanceMeters - b.distanceMeters,
       );
     }
     results = sorted;
@@ -153,12 +154,12 @@ export default async function HomePage({
   // finding anything.
   const isDeliberateSearch = Boolean(
     params.place ||
-      params.lat ||
-      params.start ||
-      params.spotType ||
-      params.maxPrice ||
-      params.minPrice ||
-      params.sort,
+    params.lat ||
+    params.start ||
+    params.spotType ||
+    params.maxPrice ||
+    params.minPrice ||
+    params.sort,
   );
 
   if (isDeliberateSearch && results !== null) {
@@ -183,14 +184,14 @@ export default async function HomePage({
       <SiteHeader />
 
       {/*
-        * The search card sits wholly inside the dark panel.
-        *
-        * It used to straddle the boundary, pulled up by a negative margin so it overlapped the
-        * seam. The intent was to push the field in front of everything else, but the seam landed
-        * between the input row and the area chips - so the card read as two halves on two
-        * different backgrounds rather than as one control. Depth is worth having; a join running
-        * through the middle of the most important element on the page is not.
-        */}
+       * The search card sits wholly inside the dark panel.
+       *
+       * It used to straddle the boundary, pulled up by a negative margin so it overlapped the
+       * seam. The intent was to push the field in front of everything else, but the seam landed
+       * between the input row and the area chips - so the card read as two halves on two
+       * different backgrounds rather than as one control. Depth is worth having; a join running
+       * through the middle of the most important element on the page is not.
+       */}
       <section className="hero-surface">
         <div className="mx-auto max-w-7xl px-4 pt-6 pb-8 sm:px-6 sm:pt-14 sm:pb-12 lg:px-8">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-brand-100 ring-1 ring-inset ring-white/15 backdrop-blur">
@@ -199,12 +200,12 @@ export default async function HomePage({
           </p>
 
           {/*
-            * The headline names the problem, not the mechanism. "Parking you have already
-            * booked" described what the product does but read, to someone arriving cold, like
-            * a heading over their own past bookings — a page they had landed on by mistake.
-            * Circling for a space is the thing a Pune driver already recognises, so that is
-            * what the first line says; the sub-heading is where the promise goes.
-            */}
+           * The headline names the problem, not the mechanism. "Parking you have already
+           * booked" described what the product does but read, to someone arriving cold, like
+           * a heading over their own past bookings — a page they had landed on by mistake.
+           * Circling for a space is the thing a Pune driver already recognises, so that is
+           * what the first line says; the sub-heading is where the promise goes.
+           */}
           <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-balance text-white sm:mt-4 sm:text-6xl sm:leading-[1.05]">
             Stop circling.
             <br className="hidden sm:block" />{' '}
@@ -377,11 +378,11 @@ export default async function HomePage({
                 </ul>
 
                 {/*
-                  * Real tiles when a Maps key is configured, the drawn schematic otherwise. Both
-                  * present the same interaction — a price bubble per space, tap to select, tap
-                  * again to open — so this swap changes how the map looks and nothing about how
-                  * it is used.
-                  */}
+                 * Real tiles when a Maps key is configured, the drawn schematic otherwise. Both
+                 * present the same interaction — a price bubble per space, tap to select, tap
+                 * again to open — so this swap changes how the map looks and nothing about how
+                 * it is used.
+                 */}
                 <div className="mt-4 md:sticky md:top-20 md:mt-0">
                   {clientEnv.NEXT_PUBLIC_MAPS_PROVIDER === 'google' &&
                   clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (

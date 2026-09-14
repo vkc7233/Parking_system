@@ -29,8 +29,12 @@ export async function track(
 ): Promise<void> {
   const analytics = createAnalyticsAdapter({
     ANALYTICS_PROVIDER: clientEnv.NEXT_PUBLIC_POSTHOG_KEY ? 'posthog' : 'fake',
-    ...(clientEnv.NEXT_PUBLIC_POSTHOG_KEY ? { POSTHOG_KEY: clientEnv.NEXT_PUBLIC_POSTHOG_KEY } : {}),
-    ...(clientEnv.NEXT_PUBLIC_POSTHOG_HOST ? { POSTHOG_HOST: clientEnv.NEXT_PUBLIC_POSTHOG_HOST } : {}),
+    ...(clientEnv.NEXT_PUBLIC_POSTHOG_KEY
+      ? { POSTHOG_KEY: clientEnv.NEXT_PUBLIC_POSTHOG_KEY }
+      : {}),
+    ...(clientEnv.NEXT_PUBLIC_POSTHOG_HOST
+      ? { POSTHOG_HOST: clientEnv.NEXT_PUBLIC_POSTHOG_HOST }
+      : {}),
   });
 
   try {
@@ -50,14 +54,15 @@ export async function track(
 }
 
 /** Attaches durable traits, so §3's funnels can be split by role. */
-export async function identify(
-  distinctId: string,
-  traits: AnalyticsProperties,
-): Promise<void> {
+export async function identify(distinctId: string, traits: AnalyticsProperties): Promise<void> {
   const analytics = createAnalyticsAdapter({
     ANALYTICS_PROVIDER: clientEnv.NEXT_PUBLIC_POSTHOG_KEY ? 'posthog' : 'fake',
-    ...(clientEnv.NEXT_PUBLIC_POSTHOG_KEY ? { POSTHOG_KEY: clientEnv.NEXT_PUBLIC_POSTHOG_KEY } : {}),
-    ...(clientEnv.NEXT_PUBLIC_POSTHOG_HOST ? { POSTHOG_HOST: clientEnv.NEXT_PUBLIC_POSTHOG_HOST } : {}),
+    ...(clientEnv.NEXT_PUBLIC_POSTHOG_KEY
+      ? { POSTHOG_KEY: clientEnv.NEXT_PUBLIC_POSTHOG_KEY }
+      : {}),
+    ...(clientEnv.NEXT_PUBLIC_POSTHOG_HOST
+      ? { POSTHOG_HOST: clientEnv.NEXT_PUBLIC_POSTHOG_HOST }
+      : {}),
   });
 
   try {

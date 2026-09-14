@@ -61,7 +61,9 @@ export function CardBody({ className, children }: { className?: string; children
 
 export function CardFooter({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <div className={cn('rounded-b-xl border-t border-slate-100 bg-slate-50/60 px-5 py-4', className)}>
+    <div
+      className={cn('rounded-b-xl border-t border-slate-100 bg-slate-50/60 px-5 py-4', className)}
+    >
       {children}
     </div>
   );

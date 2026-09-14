@@ -147,7 +147,10 @@ export function GoogleResultMap({
         title: `${listing.title} · ${formatDistance(listing.distanceMeters)} away`,
         zIndex: selected ? 100 : 10,
         icon: {
-          url: priceMarkerIcon(formatPaise(listing.pricePerHour, { showDecimals: false }), selected),
+          url: priceMarkerIcon(
+            formatPaise(listing.pricePerHour, { showDecimals: false }),
+            selected,
+          ),
           scaledSize: new maps.Size(Math.max(46, 10 * 9 + 20), 30),
           anchor: new maps.Point(23, 15),
         },
@@ -184,7 +187,12 @@ export function GoogleResultMap({
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-      <div ref={containerRef} className="h-80 w-full md:h-[28rem]" role="application" aria-label={`Map of spaces near ${centerLabel}`} />
+      <div
+        ref={containerRef}
+        className="h-80 w-full md:h-[28rem]"
+        role="application"
+        aria-label={`Map of spaces near ${centerLabel}`}
+      />
 
       {!ready ? (
         <p className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">

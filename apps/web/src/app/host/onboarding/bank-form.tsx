@@ -76,7 +76,12 @@ export function BankAccountForm({
         />
       </Field>
 
-      <Field htmlFor="bank-ifsc" label="IFSC code" required hint="Eleven characters, e.g. HDFC0001234.">
+      <Field
+        htmlFor="bank-ifsc"
+        label="IFSC code"
+        required
+        hint="Eleven characters, e.g. HDFC0001234."
+      >
         <Input
           {...fieldAria('bank-ifsc', { hint: true })}
           name="ifsc"

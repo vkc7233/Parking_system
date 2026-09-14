@@ -49,9 +49,7 @@ export default async function AdminDashboardPage() {
     supabase.from('disputes').select('id', { count: 'exact', head: true }).eq('status', 'open'),
   ]);
 
-  const gmv = Number(
-    (completed.data as { gross: number }[] | null)?.[0]?.gross ?? 0,
-  );
+  const gmv = Number((completed.data as { gross: number }[] | null)?.[0]?.gross ?? 0);
 
   const stats = [
     { label: 'Users', value: String(users.count ?? 0), href: '/admin/users' },

@@ -271,11 +271,14 @@ export async function confirmBookingPayment(
 
   if (paymentError) {
     if (paymentError.code === '23505') {
-      await captureError(new Error(`Payment ${captured.paymentId} replayed on booking ${booking.id}`), {
-        source: 'bookings/confirm',
-        severity: 'warning',
-        userId: profile.id,
-      });
+      await captureError(
+        new Error(`Payment ${captured.paymentId} replayed on booking ${booking.id}`),
+        {
+          source: 'bookings/confirm',
+          severity: 'warning',
+          userId: profile.id,
+        },
+      );
       return { error: 'That payment has already been used for another booking.' };
     }
     return { error: 'Could not record that payment. Nothing has been confirmed.' };

@@ -138,15 +138,15 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
         </header>
 
         {/*
-          * Fixed height rather than an aspect ratio. Driving the gallery off `aspect-4/3` made
-          * the lead photo 635x476 on a 1007px screen, which pushed the price, the rules and the
-          * booking form entirely below the fold — on the screen whose whole job is to get
-          * someone to book. A gallery should be a band across the top, not a page of its own.
-          *
-          * The column count follows the number of photos, because a three-column grid holding
-          * two photos leaves a visible hole where the third would be, and most new Pune
-          * listings will have one or two.
-          */}
+         * Fixed height rather than an aspect ratio. Driving the gallery off `aspect-4/3` made
+         * the lead photo 635x476 on a 1007px screen, which pushed the price, the rules and the
+         * booking form entirely below the fold — on the screen whose whole job is to get
+         * someone to book. A gallery should be a band across the top, not a page of its own.
+         *
+         * The column count follows the number of photos, because a three-column grid holding
+         * two photos leaves a visible hole where the third would be, and most new Pune
+         * listings will have one or two.
+         */}
         {photos.length > 0 ? (
           <ul
             className={

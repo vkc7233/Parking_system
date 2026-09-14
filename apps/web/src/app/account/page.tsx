@@ -29,7 +29,10 @@ export default async function AccountPage() {
       .select('id', { count: 'exact', head: true })
       .eq('seeker_id', profile.id)
       .in('status', ['confirmed', 'completed']),
-    supabase.from('listings').select('id', { count: 'exact', head: true }).eq('host_id', profile.id),
+    supabase
+      .from('listings')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_id', profile.id),
   ]);
 
   return (
@@ -76,10 +79,9 @@ export default async function AccountPage() {
           <CardHeader title="Payment methods" />
           <CardBody>
             <p className="text-sm leading-relaxed text-slate-700">
-              Nothing to manage here, by design. Payments run through Razorpay Checkout, which
-              holds your card or UPI details on its own PCI-compliant systems — this platform
-              never receives or stores a card number, so there is nothing on our side to save or
-              delete.
+              Nothing to manage here, by design. Payments run through Razorpay Checkout, which holds
+              your card or UPI details on its own PCI-compliant systems — this platform never
+              receives or stores a card number, so there is nothing on our side to save or delete.
             </p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
               You choose how to pay each time you book, and your bank or UPI app remembers what it

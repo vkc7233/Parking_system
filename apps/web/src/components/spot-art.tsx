@@ -10,14 +10,15 @@ import type { SpotType } from '@parking/types';
  * drawn rather than fetched, so it costs no request and cannot itself fail to load.
  */
 
-const SPOT_ART: Record<SpotType, { label: string; art: 'roof' | 'sky' | 'underground' | 'gate' }> = {
-  covered: { label: 'Covered', art: 'roof' },
-  open: { label: 'Open air', art: 'sky' },
-  basement: { label: 'Basement', art: 'underground' },
-  stilt: { label: 'Stilt', art: 'roof' },
-  garage: { label: 'Garage', art: 'gate' },
-  driveway: { label: 'Driveway', art: 'gate' },
-};
+const SPOT_ART: Record<SpotType, { label: string; art: 'roof' | 'sky' | 'underground' | 'gate' }> =
+  {
+    covered: { label: 'Covered', art: 'roof' },
+    open: { label: 'Open air', art: 'sky' },
+    basement: { label: 'Basement', art: 'underground' },
+    stilt: { label: 'Stilt', art: 'roof' },
+    garage: { label: 'Garage', art: 'gate' },
+    driveway: { label: 'Driveway', art: 'gate' },
+  };
 
 export function SpotArt({ spotType }: { spotType: SpotType }) {
   const { label, art } = SPOT_ART[spotType] ?? SPOT_ART.open;

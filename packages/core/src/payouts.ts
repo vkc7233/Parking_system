@@ -37,11 +37,7 @@ export function payableAmount(candidate: PayoutCandidate): Paise {
 }
 
 export type IneligibleReason =
-  | 'not_completed'
-  | 'dispute_window_open'
-  | 'dispute_open'
-  | 'already_paid_out'
-  | 'refunded';
+  'not_completed' | 'dispute_window_open' | 'dispute_open' | 'already_paid_out' | 'refunded';
 
 /** When the Seeker's window to raise a dispute closes, and the Host becomes payable (A11). */
 export function disputeWindowClosesAt(bookingEndTime: Date): Date {

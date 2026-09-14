@@ -190,7 +190,10 @@ describe('refunds (spec 7.2: earnings match completed, NON-REFUNDED bookings)', 
     // The bug this guards: resolving a dispute in the seeker's favour refunds the money and
     // leaves the booking `completed`, so it became payable again. The platform refunded the
     // seeker and paid the host for the same stay.
-    const refunded = candidate({ hostPayout: rupeesToPaise(600), refundAmount: rupeesToPaise(690) });
+    const refunded = candidate({
+      hostPayout: rupeesToPaise(600),
+      refundAmount: rupeesToPaise(690),
+    });
 
     expect(payableAmount(refunded)).toBe(0);
     expect(isPayoutEligible(refunded, past)).toBe(false);

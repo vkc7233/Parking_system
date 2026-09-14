@@ -22,7 +22,11 @@ interface AdminBooking {
   listings: { title: string } | null;
   host: { name: string | null } | null;
   seeker: { name: string | null; phone: string } | null;
-  payments: { provider_payment_id: string | null; provider_order_id: string; status: string } | null;
+  payments: {
+    provider_payment_id: string | null;
+    provider_order_id: string;
+    status: string;
+  } | null;
 }
 
 const STATUS_TONE: Record<string, 'success' | 'info' | 'neutral' | 'warning' | 'danger'> = {

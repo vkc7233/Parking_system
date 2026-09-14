@@ -17,8 +17,7 @@ import { getProfile } from '@/lib/auth';
 export async function SiteHeader() {
   const profile = await getProfile();
 
-  const linkClass =
-    'rounded-md px-2.5 py-1.5 text-slate-700 transition hover:bg-slate-100 sm:px-3';
+  const linkClass = 'rounded-md px-2.5 py-1.5 text-slate-700 transition hover:bg-slate-100 sm:px-3';
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
