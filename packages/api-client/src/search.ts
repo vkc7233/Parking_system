@@ -59,6 +59,27 @@ export async function searchNearbyListings(
   });
 
   if (error) {
+    /*
+     * A network failure and a rejected query are the same object here, and they need different
+     * things from whoever reads the log.
+     *
+     * PostgREST returns a message that explains itself - a missing function, a bad argument. But
+     * when the database cannot be reached at all, `fetch failed` is the whole message: no status,
+     * no host, nothing to act on. It is also the most common failure in development, where it
+     * means Supabase is not running yet, and the second most common in a new deployment, where it
+     * means the URL is wrong. Naming the URL answers both without leaking anything -
+     * NEXT_PUBLIC_SUPABASE_URL is compiled into the browser bundle already.
+     */
+    if (/fetch failed|network|ECONNREFUSED|ENOTFOUND/i.test(error.message)) {
+      const url = supabaseUrlOf(supabase);
+      throw new Error(
+        `Could not reach the database at ${url}. ` +
+          (isLocal(url)
+            ? 'Supabase is not running - start it with `pnpm db:start` and reload.'
+            : 'Check NEXT_PUBLIC_SUPABASE_URL, and that the project is not paused.'),
+      );
+    }
+
     throw new Error(`Nearby search failed: ${error.message}`);
   }
 
@@ -106,4 +127,14 @@ export async function getAvailableSlots(
   }
 
   return typeof data === 'number' ? data : 0;
+}
+
+/** The client keeps its base URL on a private field, so this is a read with a safe fallback. */
+function supabaseUrlOf(client: unknown): string {
+  const url = (client as { supabaseUrl?: unknown } | null)?.supabaseUrl;
+  return typeof url === 'string' && url ? url : 'the configured Supabase URL';
+}
+
+function isLocal(url: string): boolean {
+  return /127\.0\.0\.1|localhost/i.test(url);
 }
