@@ -95,29 +95,65 @@ Open **SQL Editor → New query**, paste the entire contents of `supabase/seed.s
 That creates 3 hosts, 2 seekers, 6 Pune listings with photos, and one closed period. It also
 creates the matching `auth.users` rows, which is what makes sign-in work in the next step.
 
-### 1.5 Make sign-in work without an SMS provider
+### 1.5 Make sign-in work
 
-This is the one step people miss, and the symptom is that nobody can log in.
+This is the step that blocks a demo, and it has two paths. Try the first; it takes a minute and
+needs no third party.
 
-Locally, `supabase/config.toml` maps the seeded phone numbers to fixed codes. Hosted Supabase has
-the same feature in the dashboard.
+#### Path A — Test OTP, if your project offers it
 
-**Authentication → Sign In / Providers → Phone** → turn it on. In the provider settings, fill in:
-
-- **Test Phone Numbers and OTPs** — one line, pairs joined with `=` and separated by commas
-  (follow the example shown under the box if it differs):
+Open **Authentication → Sign In / Providers → Phone**, turn the provider on, and **scroll the
+panel to the bottom**, past _SMS OTP Length_. If there is a **Test OTP** section, put the seeded
+numbers in it as `phone=code` pairs separated by commas, set the _valid until_ date a few weeks
+ahead, and **Save**:
 
 ```
 919000000001=100001,919000000002=100002,919000000003=100003,919000000004=100004,919000000005=100005
 ```
 
-- **Test OTPs Valid Until** — a date a few weeks ahead. Once it passes, the codes stop working and
-  sign-in fails again.
+The rule is `1000` plus the last two digits. These short-circuit before any SMS is sent.
 
-Then **Save**.
+> Whether the hosted dashboard exposes this depends on your project. `test_otp` is documented for
+> local `config.toml`; on a hosted project it may not be there, and the Twilio fields above it are
+> required before **Save** will accept anything. If you cannot save without them, use Path B.
 
-The rule is `1000` plus the last two digits of the number. These short-circuit before any SMS
-provider is called, so no Twilio account is needed and no message is ever sent.
+#### Path B — a Twilio trial, and sign in as yourself
+
+Supabase requires SMS credentials before the Phone provider will save. A Twilio trial covers it
+for free, and — this is the point — **the seeded numbers cannot receive SMS**, so you sign in with
+your own real number and hand that account the demo data.
+
+1. Create a trial at **https://www.twilio.com/try-twilio** and verify your own mobile number.
+2. From the Twilio Console home, copy **Account SID** and **Auth Token**.
+3. **Messaging → Services → Create Messaging Service** (any name, "Notify my users"). Add your
+   trial number to its sender pool. Copy the **Messaging Service SID** — it starts with `MG`.
+4. Paste all three into the Supabase Phone panel and **Save**.
+5. Open the deployed site and **sign in with your own number**. A real SMS arrives. This creates
+   your account as a plain seeker.
+6. In the Supabase **SQL Editor**, run this with your number in place of the example — it makes
+   that account the admin and gives it the seeded listings, so every screen has data:
+
+```sql
+update public.users
+   set role = 'admin', kyc_status = 'verified'
+ where phone = '919876543210';
+
+with me as (select id from public.users where phone = '919876543210')
+update public.listings set host_id = (select id from me)
+ where host_id = '00000000-0000-4000-8000-000000000003';
+
+with me as (select id from public.users where phone = '919876543210')
+update public.bookings set host_id = (select id from me)
+ where host_id = '00000000-0000-4000-8000-000000000003';
+```
+
+Use the number exactly as Supabase stores it: country code, no `+`, no spaces — `919876543210`.
+
+That one account is then the seeker, the host and the admin for the demo. Every screen works;
+you just switch between them rather than between logins. A trial account can only text numbers
+you have verified with Twilio, which is fine — yours is the only one that needs to receive one.
+
+#### The seeded accounts, if Path A worked
 
 | Number       | Code     | Who they are                                |
 | ------------ | -------- | ------------------------------------------- |
@@ -126,11 +162,6 @@ provider is called, so no Twilio account is needed and no message is ever sent.
 | 919000000003 | `100003` | Kiran Joshi — Host, 3 listings              |
 | 919000000004 | `100004` | Rohan Bhosale — Seeker                      |
 | 919000000005 | `100005` | Anjali Sathe — Seeker                       |
-
-> **If Supabase refuses to enable Phone without SMS credentials:** create a free
-> [Twilio trial](https://www.twilio.com/try-twilio), paste its Account SID, Auth Token and a
-> Messaging Service SID into the provider settings, and still use the test numbers above. The
-> trial is never actually charged because test numbers never reach it.
 
 ### 1.6 Tell Supabase Auth where the app lives
 
@@ -231,12 +262,13 @@ Open the Render URL. In order:
 2. **Tap "Use my location".** Your browser asks permission. From outside Pune it tells you the pilot
    is Pune-only, which is the correct answer — so to show it working in a demo, search an area
    instead, or run the demo from Pune. It needs HTTPS, which Render provides.
-3. **Sign in** as `9000000004` with code `100004`.
+3. **Sign in** — as `9000000004` / `100004` if you used Path A, or with your own number if you
+   used Path B.
 4. **Book something** — pick a listing, a time, and pay. The fake provider captures instantly, and
    you land on a booking page with a QR access pass.
-5. **Sign out, sign in as `9000000003`** (Kiran, a host) → **Calendar** shows the booking you just
+5. **Open Host → Calendar** (Path B: same account; Path A: sign in as `9000000003`, Kiran) → **Calendar** shows the booking you just
    made.
-6. **Sign in as `9000000001`** and go to **`/admin`** — reached by typing the URL, never linked.
+6. **Go to `/admin`** (Path B: same account; Path A: sign in as `9000000001`) — reached by typing the URL, never linked.
    The dashboard shows live counts and GMV.
 
 If all six work, the demo is ready.
