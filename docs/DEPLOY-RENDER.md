@@ -100,38 +100,70 @@ creates the matching `auth.users` rows, which is what makes sign-in work in the 
 This is the step that blocks a demo, and it has two paths. Try the first; it takes a minute and
 needs no third party.
 
-#### Path A — Test OTP, if your project offers it
+#### Path A — set the test codes through the Management API (no Twilio)
 
-Open **Authentication → Sign In / Providers → Phone**, turn the provider on, and **scroll the
-panel to the bottom**, past _SMS OTP Length_. If there is a **Test OTP** section, put the seeded
-numbers in it as `phone=code` pairs separated by commas, set the _valid until_ date a few weeks
-ahead, and **Save**:
+The dashboard will not save the Phone provider without Twilio credentials. The Management API
+has no such requirement: `sms_provider` is nullable there, and `sms_test_otp` is a documented
+field. Setting it directly is the shortest route to a working demo, and nothing ever sends an SMS.
 
+1. Create a **personal access token** at **https://supabase.com/dashboard/account/tokens** →
+   _Generate new token_. Copy it — it starts `sbp_` and is shown once.
+2. Run this, substituting your project ref and the token. **PowerShell:**
+
+```powershell
+$ref = "YOUR-PROJECT-REF"
+$pat = "sbp_XXXXXXXXXXXXXXXXXXXX"
+
+$body = @{
+  external_phone_enabled   = $true
+  sms_test_otp             = "919000000001=100001,919000000002=100002,919000000003=100003,919000000004=100004,919000000005=100005"
+  sms_test_otp_valid_until = "2026-12-31T23:59:59Z"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Patch `
+  -Uri "https://api.supabase.com/v1/projects/$ref/config/auth" `
+  -Headers @{ Authorization = "Bearer $pat" } `
+  -ContentType "application/json" -Body $body
 ```
-919000000001=100001,919000000002=100002,919000000003=100003,919000000004=100004,919000000005=100005
+
+Or **Git Bash / macOS / Linux:**
+
+```bash
+curl -X PATCH "https://api.supabase.com/v1/projects/YOUR-PROJECT-REF/config/auth"   -H "Authorization: Bearer sbp_XXXXXXXXXXXXXXXXXXXX"   -H "Content-Type: application/json"   -d '{
+    "external_phone_enabled": true,
+    "sms_test_otp": "919000000001=100001,919000000002=100002,919000000003=100003,919000000004=100004,919000000005=100005",
+    "sms_test_otp_valid_until": "2026-12-31T23:59:59Z"
+  }'
 ```
 
-The rule is `1000` plus the last two digits. These short-circuit before any SMS is sent.
+3. Confirm it took — this prints what the server now holds:
 
-> Whether the hosted dashboard exposes this depends on your project. `test_otp` is documented for
-> local `config.toml`; on a hosted project it may not be there, and the Twilio fields above it are
-> required before **Save** will accept anything. If you cannot save without them, use Path B.
+```bash
+curl -s "https://api.supabase.com/v1/projects/YOUR-PROJECT-REF/config/auth"   -H "Authorization: Bearer sbp_XXXXXXXXXXXXXXXXXXXX" | grep -o '"sms_test_otp[^,]*'
+```
 
-#### Path B — a Twilio trial, and sign in as yourself
+The format is fixed by the API: `digits=digits`, pairs joined by commas, no `+` and no spaces.
+The codes are `1000` plus the last two digits of each number. Push
+`sms_test_otp_valid_until` further out whenever it expires — after that date, sign-in stops
+working again.
 
-Supabase requires SMS credentials before the Phone provider will save. A Twilio trial covers it
-for free, and — this is the point — **the seeded numbers cannot receive SMS**, so you sign in with
-your own real number and hand that account the demo data.
+> The dashboard's Phone panel may still show the red "Twilio Account SID is required" warning.
+> Ignore it and do not press Save there — saving from the dashboard would overwrite what you just
+> set. The API values are what Auth actually uses.
 
-1. Create a trial at **https://www.twilio.com/try-twilio** and verify your own mobile number.
-2. From the Twilio Console home, copy **Account SID** and **Auth Token**.
-3. **Messaging → Services → Create Messaging Service** (any name, "Notify my users"). Add your
-   trial number to its sender pool. Copy the **Messaging Service SID** — it starts with `MG`.
-4. Paste all three into the Supabase Phone panel and **Save**.
-5. Open the deployed site and **sign in with your own number**. A real SMS arrives. This creates
-   your account as a plain seeker.
-6. In the Supabase **SQL Editor**, run this with your number in place of the example — it makes
-   that account the admin and gives it the seeded listings, so every screen has data:
+#### Path B — last resort: a Twilio trial, and sign in as yourself
+
+Only if Path A fails. Be aware that sending SMS to Indian numbers through Twilio needs DLT
+registration — the same multi-week process the test codes exist to avoid — so this may not work
+for an Indian number at all.
+
+In the Twilio Console, **Account SID** and **Auth Token** are both on the home page under
+_Account Info_; the token is hidden behind a **Show** / eye control. A Messaging Service lives at
+**Messaging → Services** (direct link: `https://console.twilio.com/us1/develop/sms/services`) and
+needs a Twilio phone number in its sender pool first.
+
+The seeded numbers cannot receive SMS, so you sign in with your own verified number and hand that
+account the demo data:
 
 ```sql
 update public.users
@@ -147,13 +179,9 @@ update public.bookings set host_id = (select id from me)
  where host_id = '00000000-0000-4000-8000-000000000003';
 ```
 
-Use the number exactly as Supabase stores it: country code, no `+`, no spaces — `919876543210`.
+That one account is then the seeker, the host and the admin for the demo.
 
-That one account is then the seeker, the host and the admin for the demo. Every screen works;
-you just switch between them rather than between logins. A trial account can only text numbers
-you have verified with Twilio, which is fine — yours is the only one that needs to receive one.
-
-#### The seeded accounts, if Path A worked
+#### The seeded accounts
 
 | Number       | Code     | Who they are                                |
 | ------------ | -------- | ------------------------------------------- |
